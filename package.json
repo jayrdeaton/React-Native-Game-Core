@@ -1,0 +1,87 @@
+{
+  "name": "@tastic/core",
+  "version": "0.1.0",
+  "description": "Required foundation for @tastic/* game packages: Vec2 and vector math, clamp, a dt-clamped RAF game-loop hook, and environment-capability detection (touch-primary vs. keyboard-likely)",
+  "keywords": [
+    "react-native",
+    "expo",
+    "vec2",
+    "vector-math",
+    "game-loop",
+    "requestAnimationFrame",
+    "touch-detection"
+  ],
+  "homepage": "https://github.com/jayrdeaton/react-native-game-core#readme",
+  "bugs": {
+    "url": "https://github.com/jayrdeaton/react-native-game-core/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jayrdeaton/react-native-game-core.git"
+  },
+  "license": "MIT",
+  "author": "Jay Deaton",
+  "sideEffects": false,
+  "type": "commonjs",
+  "exports": {
+    ".": {
+      "react-native": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "react-native": "src/index.ts",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src",
+    "!src/__tests__",
+    "!src/__mocks__"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "build:watch": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "fix": "eslint --fix",
+    "lint": "eslint",
+    "prepublishOnly": "npm run build",
+    "release": "git push --follow-tags",
+    "release:major": "npm version major && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "test": "jest",
+    "test:watch": "jest --watchAll",
+    "typecheck": "tsc --noEmit",
+    "preversion": "npm run lint && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/jest": "^30.0.0",
+    "@types/react": "^19.0.0",
+    "@typescript-eslint/parser": "^8.59.3",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-package-json": "^1.0.0",
+    "eslint-plugin-prettier": "^5.5.5",
+    "eslint-plugin-react-native": "^5.0.0",
+    "eslint-plugin-simple-import-sort": "^13.0.0",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "prettier": "^3.8.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "ts-jest": "^29.4.9",
+    "tsup": "^8.0.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
