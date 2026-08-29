@@ -77,6 +77,19 @@ describe('useGameLoop', () => {
     expect(raf.hasPending()).toBe(false)
   })
 
+  it('calls the latest onTick after a rerender, without restarting the loop', () => {
+    const raf = installFakeRaf()
+    const firstOnTick = jest.fn()
+    const secondOnTick = jest.fn()
+    const { rerender } = renderHook(({ onTick }) => useGameLoop(onTick, { enabled: true }), { initialProps: { onTick: firstOnTick } })
+
+    rerender({ onTick: secondOnTick })
+    raf.fire(1000)
+
+    expect(firstOnTick).not.toHaveBeenCalled()
+    expect(secondOnTick).toHaveBeenCalledWith(1)
+  })
+
   it('resets the timestamp baseline (dt = 1 again) after disabling and re-enabling', () => {
     const raf = installFakeRaf()
     const onTick = jest.fn()

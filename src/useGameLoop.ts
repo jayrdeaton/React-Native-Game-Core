@@ -19,7 +19,10 @@ const DEFAULT_MAX_DT = 2.5
 // paused — the same behavior a fresh mount gets.
 export function useGameLoop(onTick: (dt: number) => void, { enabled, maxDt = DEFAULT_MAX_DT }: UseGameLoopOptions): void {
   const onTickRef = useRef(onTick)
-  onTickRef.current = onTick
+
+  useEffect(() => {
+    onTickRef.current = onTick
+  }, [onTick])
 
   useEffect(() => {
     if (!enabled) return
