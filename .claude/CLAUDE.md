@@ -58,7 +58,7 @@ Platform resolution note: `package.json`'s `"react-native"` and `"browser"` expo
 
 ## Peer Dependencies
 
-- `react` (>=19.0.0) — required only for `useGameLoop` and `useIsTouchPrimaryDevice`. `Vec2`, `clamp`, and `computeClampedDt` are dependency-free.
+- `react` (>=19.0.0) — required. `Vec2`/`clamp`/`computeClampedDt`'s own source has no dependency, but the package ships as a single bundle (one `tsup` entry, `src/index.ts` re-exporting everything) alongside `useGameLoop`/`useIsTouchPrimaryDevice`, which do import `react` — so the compiled `dist/index.js`/`.mjs` has a real top-level `require("react")`/`import` regardless of which exports a consumer actually uses. Every real consumer in the fleet is a React Native app anyway (which always has `react` installed by definition), so this has never been a practical problem — just worth knowing the "dependency-free" framing describes the source files, not the shipped bundle. Would need a separate build entry (and a new subpath export) to actually decouple them; not planned unless a genuinely non-React consumer shows up.
 
 ## Testing
 

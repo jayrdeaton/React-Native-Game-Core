@@ -53,5 +53,7 @@ linked consumer at once.
 
 ## Peer dependencies
 
-`react` (>=19.0.0) — needed for `useGameLoop` and `useIsTouchPrimaryDevice`. Everything else
-(`Vec2`, `clamp`, `computeClampedDt`) is plain, dependency-free TypeScript.
+`react` (>=19.0.0) — required for the whole package. `Vec2`/`clamp`/`computeClampedDt` are
+plain, dependency-free TypeScript in source, but the package ships as one bundle alongside
+`useGameLoop`/`useIsTouchPrimaryDevice`, so `react` is needed to load any of it. This is a React
+Native toolkit either way, so every real consumer already has `react` installed regardless.
