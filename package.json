@@ -1,6 +1,6 @@
 {
   "name": "@tastic/core",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Required foundation for @tastic/* game packages: Vec2 and vector math, clamp, a dt-clamped RAF game-loop hook, and environment-capability detection (touch-primary vs. keyboard-likely)",
   "keywords": [
     "react-native",
