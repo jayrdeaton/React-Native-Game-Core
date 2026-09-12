@@ -1,6 +1,6 @@
 import { Platform } from 'react-native'
 
-import { getFixedZoneRotation, getOpposingZoneRotation, getViewRotation } from '../rotation'
+import { getFixedZoneRotation, getOpposingZoneRotation, getViewRotation, toRotationStyle } from '../rotation'
 
 describe('getViewRotation', () => {
   it('rotates faceToFace by 0° right-side-up, 180° upside-down, regardless of p1OnRight', () => {
@@ -67,5 +67,17 @@ describe('getOpposingZoneRotation', () => {
   it('flips between the two portrait angles — seats face across the device from each other', () => {
     expect(getOpposingZoneRotation(0)).toBe(180)
     expect(getOpposingZoneRotation(180)).toBe(0)
+  })
+})
+
+describe('toRotationStyle', () => {
+  it('contributes no transform at all for 0°, rather than an inert rotate:0deg entry', () => {
+    expect(toRotationStyle(0)).toBeUndefined()
+  })
+
+  it('produces a rotate transform for every non-zero ViewRotation angle', () => {
+    expect(toRotationStyle(90)).toEqual({ transform: [{ rotate: '90deg' }] })
+    expect(toRotationStyle(-90)).toEqual({ transform: [{ rotate: '-90deg' }] })
+    expect(toRotationStyle(180)).toEqual({ transform: [{ rotate: '180deg' }] })
   })
 })
