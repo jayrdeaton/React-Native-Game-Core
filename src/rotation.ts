@@ -70,3 +70,14 @@ export function getOpposingZoneRotation(rotation: ViewRotation): ViewRotation {
 export function toRotationStyle(rotation: ViewRotation): { transform: [{ rotate: string }] } | undefined {
   return rotation % 360 !== 0 ? { transform: [{ rotate: `${rotation}deg` }] } : undefined
 }
+
+// The dimensions analog of rotateInsets above: a ±90° rotation swaps a portrait-locked window's own
+// effective footprint (what was width becomes height, and vice versa) for content rendered inside a
+// FakeLandscapeView-style ancestor, since useWindowDimensions() itself never changes (the OS still
+// thinks it's portrait). 180°/0° don't change the footprint at all. Extracted out of
+// FakeLandscapeView's own inline swap so it's one implementation, dogfooded by the component that
+// most needs it correct, and reusable by any caller (e.g. a card-layout width/height budget) that
+// needs to reason about the same post-rotation footprint FakeLandscapeView itself renders into.
+export function rotateDimensions(width: number, height: number, rotation: ViewRotation): { width: number; height: number } {
+  return Math.abs(rotation) === 90 ? { width: height, height: width } : { width, height }
+}

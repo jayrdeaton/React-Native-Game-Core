@@ -24,8 +24,9 @@ whichever package happens to need it first.
   wide-viewport web browser with a fine pointer)? Useful for deciding whether to offer a
   keyboard-scheme picker or lean on touch/swipe controls. Always `true` on native.
 - **Orientation tracking** — `OrientationProvider`, `useOrientationState`, `useRotation`,
-  `useOrientationLock`, and the pure `getViewRotation`/`getFixedZoneRotation`/
-  `getOpposingZoneRotation`/`rotateInsets` geometry helpers. See its own section below —
+  `useOrientationLock`, `FakeLandscapeView`, `useRotatedWindowDimensions`, and the pure
+  `getViewRotation`/`getFixedZoneRotation`/`getOpposingZoneRotation`/`rotateInsets`/
+  `rotateDimensions` geometry helpers. See its own section below —
   [`@tastic/split-screen`](https://github.com/jayrdeaton/react-native-split-screen) is built on top
   of this for its two-player zone layout, and [`@tastic/hud`](https://github.com/jayrdeaton/react-native-hud)'s
   popovers/dialogs read `useRotation()` directly to stay legible inside a rotated zone.
@@ -93,11 +94,63 @@ over a patch-based context, mirroring `@rific/feedback-press`'s `useSoundSetting
 shape. Like the rest of this package, it holds live state only; your app decides where (or whether)
 that setting is persisted, via `OrientationProvider`'s own `lockInitialValue`/`onLockChange` props.
 
+### Whole-screen content: `FakeLandscapeView` / `useRotatedWindowDimensions`
+
+For single-perspective, whole-screen content (a title screen, a settings dialog, or — with care, see
+its own warning below — an entire game screen), wrap it in `FakeLandscapeView` instead of hand-rolling
+the rotation yourself:
+
+```tsx
+import { FakeLandscapeView } from '@tastic/core'
+
+function TitleScreen() {
+  return (
+    <FakeLandscapeView style={{ flex: 1 }}>
+      <YourContent />
+    </FakeLandscapeView>
+  )
+}
+```
+
+It swaps width/height for a genuine 90°/-90° hold (the standard "fake landscape inside a
+portrait-locked app" trick) and does a plain in-place rotate for 180°, reading the same ambient
+`useOrientationState()` every other hook here does (all three orientation props — plus `locked` — can
+be passed explicitly instead, for a caller whose own reading needs to differ from the live one, e.g.
+a fading dual-zone layout mid-transition).
+
+**Safe for tap-driven content** — React Native's own touch responder system hit-tests against the
+rendered/transformed layout correctly. **NOT safe for continuous gesture tracking**
+(react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) —
+never wrap a game board/touch layer in this without independently verifying your own gesture code
+agrees with it under rotation.
+
+`useRotatedWindowDimensions(locked?)` is the dimensions analog of `rotateInsets` above — for a
+caller rendering *inside* a `FakeLandscapeView`-style ancestor that needs its own width/height budget
+(a card-layout column count, a tableau height cap) to reflect the post-rotation footprint that
+ancestor actually presents, since plain `useWindowDimensions()` never changes under a fake rotation
+(the OS still thinks it's portrait):
+
+```tsx
+import { useRotatedWindowDimensions } from '@tastic/core'
+
+function GameBoard() {
+  const { width, height } = useRotatedWindowDimensions()
+  // size your own layout off `width`/`height`, not raw useWindowDimensions()
+}
+```
+
+`rotateDimensions(width, height, rotation)` is the pure function underneath both `FakeLandscapeView`
+and `useRotatedWindowDimensions` — swaps width/height for `±90°`, passes `0°`/`180°` through
+unchanged — exposed directly for a caller doing its own composition.
+
 ## Install
 
-Published to the public npm registry as `@tastic/core`. The orientation-tracking feature described
-above is newer than the latest published version, though — for now it only exists in local,
-`yalc`-linked builds (see below) until it's published for real.
+Published to the public npm registry as `@tastic/core`. `FakeLandscapeView`,
+`useRotatedWindowDimensions`, and `rotateDimensions` (moved here from `@tastic/split-screen`, which
+never had any real dependency on that package's own two-player pieces) are newer than the latest
+published version, though — for now they only exist in local, `yalc`-linked builds (see below) until
+published for real. Everything else described above, including the rest of the orientation-tracking
+feature, is already live on npm.
 
 ```bash
 npm install @tastic/core
