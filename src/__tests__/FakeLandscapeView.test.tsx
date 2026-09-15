@@ -162,10 +162,7 @@ describe('FakeLandscapeView', () => {
 
     it('falls back to a live useOrientationState() read when every orientation prop is omitted', () => {
       const style = { backgroundColor: 'purple' }
-      render(
-        <FakeLandscapeView style={style}>hello</FakeLandscapeView>,
-        { wrapper }
-      )
+      render(<FakeLandscapeView style={style}>hello</FakeLandscapeView>, { wrapper })
 
       commit({ x: 0, y: 8 }) // faceToFace + upsideDown, same gravity useRotation.test.tsx commits to 180°
 
