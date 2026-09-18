@@ -1,6 +1,6 @@
-import { ReactNode, useCallback, useState } from 'react'
+import { ReactNode } from 'react'
 
-import { defaultOrientationLockSettings, OrientationLockContext, OrientationLockSettings } from './OrientationLockContext'
+import { OrientationLockProvider, OrientationLockSettings } from './OrientationLockContext'
 import { DeviceMotionModule, OrientationStateProvider } from './useOrientationState'
 
 export type OrientationProviderProps = {
@@ -30,22 +30,15 @@ export type OrientationProviderProps = {
 // Without this mounted, every hook in this file's sibling modules still works but degrades to its
 // own inert default (unresolved/unlocked, never updates) rather than throwing — the same "missing
 // SafeAreaProvider" failure mode useOrientationState's own doc describes.
+//
+// The lock-setting half is just OrientationLockProvider (@rific/core's createSettingsContext,
+// bound in OrientationLockContext.ts) — lockInitialValue/onLockChange are that factory's own
+// initialValue/onChange props, forwarded through unchanged (same names this file's own hand-rolled
+// version already used, so no consuming app's own props needed to change).
 export function OrientationProvider({ children, deviceMotion, lockInitialValue, onLockChange }: OrientationProviderProps) {
-  const [lockSettings, setLockSettings] = useState<OrientationLockSettings>(() => ({ ...defaultOrientationLockSettings, ...lockInitialValue }))
-  const set = useCallback(
-    (patch: Partial<OrientationLockSettings>) => {
-      setLockSettings((prev) => {
-        const next = { ...prev, ...patch }
-        onLockChange?.(next)
-        return next
-      })
-    },
-    [onLockChange]
-  )
-
   return (
-    <OrientationLockContext.Provider value={{ settings: lockSettings, set }}>
+    <OrientationLockProvider initialValue={lockInitialValue} onChange={onLockChange}>
       <OrientationStateProvider deviceMotion={deviceMotion}>{children}</OrientationStateProvider>
-    </OrientationLockContext.Provider>
+    </OrientationLockProvider>
   )
 }

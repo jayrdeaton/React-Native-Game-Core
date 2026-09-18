@@ -1,6 +1,6 @@
 {
   "name": "@tastic/core",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "Required foundation for @tastic/* game packages: Vec2 and vector math, clamp, a dt-clamped RAF game-loop hook, and environment-capability detection (touch-primary vs. keyboard-likely)",
   "keywords": [
     "react-native",
@@ -61,8 +61,11 @@
   "prettier": "@infinitetoken/eslint-config/prettier",
   "devDependencies": {
     "@infinitetoken/eslint-config": "0.2.0",
-    "@infinitetoken/jest-config": "^0.3.0",
-    "@infinitetoken/tsconfig": "^0.4.1",
+    "@infinitetoken/jest-config": "^0.4.0",
+    "@infinitetoken/tsconfig": "^0.5.0",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@rific/core": "^0.2.0",
+    "@tastic/edge-guard": "^0.1.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
@@ -70,6 +73,8 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-native": "^5.0.0",
+    "expo-status-bar": "^57.0.1",
+    "expo-system-ui": "^57.0.4",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "prettier": "^3.8.3",
@@ -80,6 +85,11 @@
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
+    "@react-native-async-storage/async-storage": ">=2.0.0",
+    "@rific/core": ">=0.1.2",
+    "@tastic/edge-guard": ">=0.1.0",
+    "expo-status-bar": ">=57.0.0",
+    "expo-system-ui": ">=57.0.0",
     "react": ">=19.0.0",
     "react-native": ">=0.76.0"
   },
