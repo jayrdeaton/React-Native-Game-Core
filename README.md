@@ -107,6 +107,27 @@ over a patch-based context, mirroring `@rific/feedback-press`'s `useSoundSetting
 shape. Like the rest of this package, it holds live state only; your app decides where (or whether)
 that setting is persisted, via `OrientationProvider`'s own `lockInitialValue`/`onLockChange` props.
 
+#### Optional: freeze the shared reading while locked (`freezeWhileLocked`)
+
+By default, "locked" is per-call-site: each `useOrientationState(locked)` / `useRotation(locked)` /
+`FakeLandscapeView locked` / `RotationAwareStatusBar locked` snapshots the live reading when *its own*
+flag flips (or at its own mount), and every call site must be handed the same flag by hand. Pass
+`freezeWhileLocked` to `OrientationProvider` to make the **shared reading itself** freeze while
+`useOrientationLock().locked` is true instead:
+
+```tsx
+<OrientationProvider deviceMotion={DeviceMotion} lockInitialValue={{ locked }} onLockChange={save} freezeWhileLocked>
+```
+
+Every consumer then sees the reading that was current when the user locked — including a component that
+mounts *after* the lock — with no per-call `locked` plumbing (the per-call argument still works and is
+harmless). Unlocking resumes through the normal hold-steady debounce (a tilt held during the lock does
+not commit the instant you unlock). If the lock is already on at launch and no confident reading exists
+yet, the first one is latched rather than pinning the unresolved default. It is opt-in because it
+changes semantics: locking freezes *every* consumer of the shared reading, so an app that wants a
+screen's lock to be independent of another's should leave it off. Native only (web derives its reading
+from window size).
+
 ### Whole-screen content: `FakeLandscapeView` / `useRotatedWindowDimensions`
 
 For single-perspective, whole-screen content (a title screen, a settings dialog, or — with care, see
@@ -130,6 +151,15 @@ portrait-locked app" trick) and does a plain in-place rotate for 180°, reading 
 `useOrientationState()` every other hook here does (all three orientation props — plus `locked` — can
 be passed explicitly instead, for a caller whose own reading needs to differ from the live one, e.g.
 a fading dual-zone layout mid-transition).
+
+The rendered tree is identical at every angle (outer `View` > inner `View` > children; only styles change),
+so rotating never unmounts/remounts `children` — their state survives a rotation. At `0°`/`180°` your
+`style` is split so layout matches a single `<View style>`: the outer view takes everything that positions
+or sizes it in its parent (`position`/insets, `flex*`, `width`/`height`/min/max, `aspectRatio`, `alignSelf`,
+margins, `zIndex`, `display`, `transform`), and the inner container that lays out `children` takes the rest
+(`alignItems`, `justifyContent`, `gap`, padding, borders, background, ...) plus a fill of the outer box and
+the 180° rotate. So `style={[StyleSheet.absoluteFill, ...]}` overlays stay out of flow and `{ flex: 1,
+alignItems: 'center' }` still centers. (`boxSizing: 'content-box'` with an explicit size is not supported.)
 
 **Safe for tap-driven content** — React Native's own touch responder system hit-tests against the
 rendered/transformed layout correctly. **NOT safe for continuous gesture tracking**
@@ -184,6 +214,11 @@ off the live tilt reading while the rest of the screen has correctly frozen, and
 diverge. This was a real bug in 4 of the 5 apps that hand-rolled this component before it was
 extracted here; only one had it right — the whole reason it's a package component now instead of
 another hand-rolled copy is to make that divergence impossible to reintroduce.
+
+Optional `style` (`'auto' | 'inverted' | 'light' | 'dark'`), `animated` and `hideTransitionAnimation`
+props pass straight through to `expo-status-bar`'s `StatusBar` — e.g. `style='light'` for a surface that is
+always dark. Omitted, they leave expo-status-bar's own defaults untouched. `hidden` stays
+`rotation !== 0` and is not overridable.
 
 Render your wrapper (`AppRotationAwareStatusBar` above, or whatever you call it) *inside* whatever
 provider tree actually holds the `lockOrientation` value it reads — your settings/Redux provider —

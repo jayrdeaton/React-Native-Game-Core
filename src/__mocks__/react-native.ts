@@ -14,9 +14,23 @@ interface FakeViewProps {
 const viewStub = ({ children }: FakeViewProps) => children ?? null
 export const View = jest.fn(viewStub)
 
+// flatten mirrors the real one (arrays, nesting, falsy entries; later wins) so a test can inspect
+// the merged style a component splits/forwards; absoluteFill matches react-native's own constant.
+type StyleValue = Record<string, unknown> | StyleValue[] | null | undefined | false
+function flatten(style: StyleValue): Record<string, unknown> | undefined {
+  if (!style) return undefined
+  if (!Array.isArray(style)) return style
+  const out: Record<string, unknown> = {}
+  for (const entry of style) Object.assign(out, flatten(entry))
+  return out
+}
+const absoluteFill = { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 } as const
+
 export const StyleSheet = {
   create: <T extends object>(styles: T): T => styles,
-  flatten: (style: unknown) => style
+  flatten,
+  absoluteFill,
+  absoluteFillObject: absoluteFill
 }
 
 // Added for useKeyboardVisible.test.tsx / OrientationProvider.portraitWhileKeyboard.test.tsx: a Keyboard whose listeners a test can

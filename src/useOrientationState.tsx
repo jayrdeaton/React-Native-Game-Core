@@ -1,6 +1,7 @@
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, useWindowDimensions } from 'react-native'
 
+import { useOrientationLockSettings } from './OrientationLockContext'
 import { OrientationMode } from './OrientationMode'
 import { useKeyboardVisible } from './useKeyboardVisible'
 
@@ -121,8 +122,22 @@ function candidateFromGravity(x: number, y: number): Candidate | null {
 // left). Hoisting the subscription up to one shared Provider makes the committed value a property of
 // the app's lifetime, not any one screen's mount lifecycle — matching how a real OS-level orientation
 // reading would have persisted across navigation too.
-export function useOrientationStateSource(deviceMotion?: DeviceMotionModule): OrientationState {
+//
+// `hold` (opt-in, see OrientationProvider's `freezeWhileLocked`) stops the shared reading from
+// committing new candidates while true — but only once a first confident reading exists, so a lock
+// restored at launch (before any sensor sample has landed) doesn't pin the unresolved default forever;
+// it latches the first confident reading instead. While held, the in-progress candidate is discarded
+// every sample, so unlocking restarts the normal COMMIT_MS hold-steady debounce from scratch rather
+// than instantly applying a tilt that was already "settled" during the lock. Web derives its reading
+// from window dimensions, not this sensor path, and isn't affected.
+export function useOrientationStateSource(deviceMotion?: DeviceMotionModule, hold = false): OrientationState {
   const [state, setState] = useState<OrientationState>(DEFAULT_STATE)
+  // Read by the sensor listener without resubscribing it every time the lock flips.
+  const holdRef = useRef(false)
+  const shouldHold = hold && state.resolved
+  useEffect(() => {
+    holdRef.current = shouldHold
+  })
 
   // Web has no accelerometer at all — falls back to exactly today's useWindowDimensions-based
   // reading, unchanged, rather than trying to make DeviceMotion mean something there. Computed
@@ -158,6 +173,10 @@ export function useOrientationStateSource(deviceMotion?: DeviceMotionModule): Or
     deviceMotion.setUpdateInterval(UPDATE_INTERVAL_MS)
     const subscription = deviceMotion.addListener(({ accelerationIncludingGravity }) => {
       if (!accelerationIncludingGravity) return
+      if (holdRef.current) {
+        pendingCandidate = null
+        return
+      }
       const candidate = candidateFromGravity(accelerationIncludingGravity.x, accelerationIncludingGravity.y)
       if (!candidate) {
         pendingCandidate = null
@@ -213,13 +232,19 @@ const OrientationStateContext = createContext<OrientationState>(DEFAULT_STATE)
 export interface OrientationStateProviderProps {
   children: ReactNode
   deviceMotion?: DeviceMotionModule
+  // Opt-in, default false. When true, the SHARED reading itself stops updating for as long as
+  // useOrientationLock()'s `locked` is true (read from the enclosing OrientationLockProvider — inert
+  // if there is none), so every consumer, including one that mounts mid-lock, sees the reading that
+  // was current when the user locked. See OrientationProvider's own doc.
+  freezeWhileLocked?: boolean
   // Opt-in, default false. When true, the reading every consumer gets is PORTRAIT (`faceToFace`, not upside-down) for as long as
   // the software keyboard is showing - see OrientationProvider's own doc.
   portraitWhileKeyboard?: boolean
 }
 
-export function OrientationStateProvider({ children, deviceMotion, portraitWhileKeyboard = false }: OrientationStateProviderProps) {
-  const state = useOrientationStateSource(deviceMotion)
+export function OrientationStateProvider({ children, deviceMotion, freezeWhileLocked = false, portraitWhileKeyboard = false }: OrientationStateProviderProps) {
+  const { settings } = useOrientationLockSettings()
+  const state = useOrientationStateSource(deviceMotion, freezeWhileLocked && settings.locked)
   // The sensor reading above is left untouched (and so is getOrientationSnapshot's module-level copy of it - that is the physical
   // hold, which a game freezing its own layout for a match wants regardless of a keyboard): only what CONSUMERS read is overridden
   // while the keyboard is up. A new object only when the keyboard state flips, so consumers don't re-render on unrelated renders.

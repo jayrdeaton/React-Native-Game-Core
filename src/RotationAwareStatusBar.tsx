@@ -1,4 +1,4 @@
-import { StatusBar } from 'expo-status-bar'
+import { StatusBar, type StatusBarProps } from 'expo-status-bar'
 
 import { getViewRotation } from './rotation'
 import { useOrientationState } from './useOrientationState'
@@ -12,6 +12,14 @@ export interface RotationAwareStatusBarProps {
   // passing nothing here would keep tracking live tilt unconditionally even while the content
   // beside it has frozen, which is exactly the divergence a locked screen exists to prevent.
   locked?: boolean
+  // Passthroughs to expo-status-bar's own props of the same name, for an app whose surface never
+  // follows the OS color scheme (e.g. a dark game table that always wants 'light' text). Omitted =
+  // expo-status-bar's own default (style 'auto', no animation, 'fade' hide transition), i.e. exactly
+  // what this component rendered before these existed. `hidden` is deliberately NOT passable — it is
+  // this component's whole job (`rotation !== 0`).
+  style?: StatusBarProps['style']
+  animated?: StatusBarProps['animated']
+  hideTransitionAnimation?: StatusBarProps['hideTransitionAnimation']
 }
 
 // Hides the real OS status bar whenever this package's own rotation system (getViewRotation, as
@@ -39,8 +47,8 @@ export interface RotationAwareStatusBarProps {
 // the way OrientationProvider takes `deviceMotion` for expo-sensors: unlike expo-sensors, every
 // consuming app already depends on expo-status-bar directly for its own screens (e.g. /game's own
 // unconditional <StatusBar hidden />), so requiring it package-wide adds no new install burden.
-export function RotationAwareStatusBar({ locked = false }: RotationAwareStatusBarProps = {}) {
+export function RotationAwareStatusBar({ locked = false, style, animated, hideTransitionAnimation }: RotationAwareStatusBarProps = {}) {
   const { orientationMode, p1OnRight, upsideDown } = useOrientationState(locked)
   const rotation = getViewRotation(orientationMode, p1OnRight, upsideDown)
-  return <StatusBar hidden={rotation !== 0} />
+  return <StatusBar hidden={rotation !== 0} style={style} animated={animated} hideTransitionAnimation={hideTransitionAnimation} />
 }

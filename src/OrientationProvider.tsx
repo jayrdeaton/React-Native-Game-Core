@@ -22,6 +22,20 @@ export type OrientationProviderProps = {
   // Fires with the full settings object whenever the lock setting changes via useOrientationLock()'s
   // setLocked — the app's own hook into persisting it, analogous to onChange/onSoundChange.
   onLockChange?: (settings: OrientationLockSettings) => void
+  // Opt-in (default false). When true, the shared orientation reading itself freezes while
+  // useOrientationLock().locked is true: every consumer — useOrientationState/useRotation/
+  // FakeLandscapeView/RotationAwareStatusBar/getOrientationSnapshot, with or without their own
+  // per-call `locked` argument — sees the reading that was current when the user locked, including a
+  // component that mounts AFTER the lock (which with per-call-site locking would snapshot the live
+  // reading at its own mount instead). Nothing needs to be handed the flag by hand. Unlocking resumes
+  // tracking through the normal hold-steady debounce (a tilt held during the lock does not commit the
+  // instant you unlock). If the lock is already on at launch (lockInitialValue) and no confident
+  // reading exists yet, the first one to arrive is latched rather than pinning the unresolved default.
+  // Off by default because it changes semantics: with it on, locking here freezes EVERY consumer of
+  // the shared reading — including a screen that would prefer its own independent lock (see
+  // useOrientationState's doc). Leave it off to keep the per-call-site behavior exactly as before.
+  // Native only: web derives its reading from window size and is not frozen.
+  freezeWhileLocked?: boolean
   // Opt-in (default false). When true, every consumer of the shared reading sees PORTRAIT (rotation 0) for as long as the SOFTWARE
   // keyboard is showing, and the real orientation again once it hides - so `useRotation()`, `useRotatedWindowDimensions()`,
   // FakeLandscapeView, RotationAwareStatusBar and anything built on them (hud dialogs, a host's own rotated frames) all revert
@@ -48,10 +62,10 @@ export type OrientationProviderProps = {
 // bound in OrientationLockContext.ts) — lockInitialValue/onLockChange are that factory's own
 // initialValue/onChange props, forwarded through unchanged (same names this file's own hand-rolled
 // version already used, so no consuming app's own props needed to change).
-export function OrientationProvider({ children, deviceMotion, lockInitialValue, onLockChange, portraitWhileKeyboard }: OrientationProviderProps) {
+export function OrientationProvider({ children, deviceMotion, lockInitialValue, onLockChange, freezeWhileLocked, portraitWhileKeyboard }: OrientationProviderProps) {
   return (
     <OrientationLockProvider initialValue={lockInitialValue} onChange={onLockChange}>
-      <OrientationStateProvider deviceMotion={deviceMotion} portraitWhileKeyboard={portraitWhileKeyboard}>
+      <OrientationStateProvider deviceMotion={deviceMotion} freezeWhileLocked={freezeWhileLocked} portraitWhileKeyboard={portraitWhileKeyboard}>
         {children}
       </OrientationStateProvider>
     </OrientationLockProvider>

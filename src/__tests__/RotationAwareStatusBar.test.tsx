@@ -26,6 +26,11 @@ function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity:
   }
 }
 
+function lastProps() {
+  const calls = (StatusBar as unknown as jest.Mock).mock.calls
+  return calls[calls.length - 1][0]
+}
+
 function lastHidden(): boolean {
   const calls = (StatusBar as unknown as jest.Mock).mock.calls
   return calls[calls.length - 1][0].hidden
@@ -88,5 +93,26 @@ describe('RotationAwareStatusBar', () => {
     commit({ x: 0, y: -8 }) // would otherwise commit faceToFace/right-side-up -> 0° -> shown, but locked is now true
 
     expect(lastHidden()).toBe(true)
+  })
+
+  it('passes style/animated/hideTransitionAnimation through to StatusBar', () => {
+    render(<RotationAwareStatusBar style='light' animated hideTransitionAnimation='slide' />, { wrapper })
+    const props = lastProps()
+    expect(props).toMatchObject({ style: 'light', animated: true, hideTransitionAnimation: 'slide', hidden: false })
+  })
+
+  it('leaves style/animated/hideTransitionAnimation undefined by default so expo-status-bar defaults apply', () => {
+    render(<RotationAwareStatusBar />, { wrapper })
+    const props = lastProps()
+    expect(props.style).toBeUndefined()
+    expect(props.animated).toBeUndefined()
+    expect(props.hideTransitionAnimation).toBeUndefined()
+  })
+
+  it('keeps hidden = rotation !== 0 while passing style through', () => {
+    render(<RotationAwareStatusBar style='dark' />, { wrapper })
+    commit({ x: 8, y: 0 })
+    const props = lastProps()
+    expect(props).toMatchObject({ style: 'dark', hidden: true })
   })
 })
