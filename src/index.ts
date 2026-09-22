@@ -12,6 +12,7 @@ export { RotationAwareStatusBar, type RotationAwareStatusBarProps } from './Rota
 export { SettingsAndProfilesGate, type SettingsAndProfilesGateComponentProps, type SettingsAndProfilesGateProps } from './SettingsAndProfilesGate'
 export { useGameLoop, type UseGameLoopOptions } from './useGameLoop'
 export { useIsTouchPrimaryDevice } from './useIsTouchPrimaryDevice'
+export { useKeyboardVisible } from './useKeyboardVisible'
 export { useOrientationLock } from './useOrientationLock'
 export { type DeviceMotionListener, type DeviceMotionMeasurement, type DeviceMotionModule, getOrientationSnapshot, type OrientationState, useOrientationState } from './useOrientationState'
 export { useRotatedWindowDimensions } from './useRotatedWindowDimensions'

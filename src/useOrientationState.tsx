@@ -1,7 +1,8 @@
-import { createContext, ReactNode, useContext, useEffect, useState } from 'react'
+import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
 import { Platform, useWindowDimensions } from 'react-native'
 
 import { OrientationMode } from './OrientationMode'
+import { useKeyboardVisible } from './useKeyboardVisible'
 
 // Minimal local mirror of expo-sensors' own DeviceMotion export — covering only the members used
 // below — rather than a real dependency on the package. Same reasoning as @rific/auto-paper's
@@ -212,11 +213,19 @@ const OrientationStateContext = createContext<OrientationState>(DEFAULT_STATE)
 export interface OrientationStateProviderProps {
   children: ReactNode
   deviceMotion?: DeviceMotionModule
+  // Opt-in, default false. When true, the reading every consumer gets is PORTRAIT (`faceToFace`, not upside-down) for as long as
+  // the software keyboard is showing - see OrientationProvider's own doc.
+  portraitWhileKeyboard?: boolean
 }
 
-export function OrientationStateProvider({ children, deviceMotion }: OrientationStateProviderProps) {
+export function OrientationStateProvider({ children, deviceMotion, portraitWhileKeyboard = false }: OrientationStateProviderProps) {
   const state = useOrientationStateSource(deviceMotion)
-  return <OrientationStateContext.Provider value={state}>{children}</OrientationStateContext.Provider>
+  // The sensor reading above is left untouched (and so is getOrientationSnapshot's module-level copy of it - that is the physical
+  // hold, which a game freezing its own layout for a match wants regardless of a keyboard): only what CONSUMERS read is overridden
+  // while the keyboard is up. A new object only when the keyboard state flips, so consumers don't re-render on unrelated renders.
+  const keyboardVisible = useKeyboardVisible(portraitWhileKeyboard)
+  const value = useMemo<OrientationState>(() => (keyboardVisible ? { ...state, orientationMode: 'faceToFace', upsideDown: false } : state), [keyboardVisible, state])
+  return <OrientationStateContext.Provider value={value}>{children}</OrientationStateContext.Provider>
 }
 
 // Replaces the old useDeviceOrientation + useP1OnRight + useOrientationLock trio now that the

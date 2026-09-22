@@ -18,3 +18,15 @@ export const StyleSheet = {
   create: <T extends object>(styles: T): T => styles,
   flatten: (style: unknown) => style
 }
+
+// Added for useKeyboardVisible.test.tsx / OrientationProvider.portraitWhileKeyboard.test.tsx: a Keyboard whose listeners a test can
+// fire by hand. `keyboardListeners` is exported so a test can also assert how many are registered (none while a hook is disabled).
+type KeyboardListener = () => void
+export const keyboardListeners: Record<string, Set<KeyboardListener>> = {}
+export const Keyboard = {
+  addListener: jest.fn((event: string, listener: KeyboardListener) => {
+    ;(keyboardListeners[event] ??= new Set()).add(listener)
+    return { remove: () => keyboardListeners[event]?.delete(listener) }
+  })
+}
+export const emitKeyboard = (event: string) => keyboardListeners[event]?.forEach((listener) => listener())

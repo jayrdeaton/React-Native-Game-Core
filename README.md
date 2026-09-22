@@ -366,3 +366,22 @@ dependency of its own, since it never imports `@rific/splash-gate` — see its o
 never imports it directly — see the injection pattern in the Orientation tracking section above.
 This keeps `expo-sensors` from being forced onto a consumer that only wants `clamp`/`useGameLoop`/
 etc. and has no interest in tilt tracking at all.
+
+### `portraitWhileKeyboard`: keeping a faked landscape usable when the keyboard opens
+
+An app that stays portrait-locked at the OS level and fakes landscape by turning a `View` cannot turn the **keyboard**: iOS draws it in
+the app's real interface orientation, so it always opens portrait relative to the device - sideways to a player holding the phone in a
+faked landscape, and covering the wrong part of the turned screen. Set `portraitWhileKeyboard` on `<OrientationProvider>` and every
+consumer of the shared reading (`useRotation`, `useRotatedWindowDimensions`, `useOrientationState`, `FakeLandscapeView`,
+`RotationAwareStatusBar`, and anything built on them) reads **portrait** for as long as the *software* keyboard is showing, and the real
+orientation again when it hides:
+
+```tsx
+<OrientationProvider deviceMotion={DeviceMotion} portraitWhileKeyboard>
+```
+
+The player turns the phone upright to type; the view turns back when the keyboard closes. Nothing remounts (only the reading changes), so
+a host that keeps its tree identical across angles - as `FakeLandscapeView` does - keeps its state and its focused text field. A hardware
+keyboard raises no keyboard events and web has none, so neither triggers it. Only what consumers *read* is overridden: the sensor
+underneath keeps tracking the physical hold, and `getOrientationSnapshot()` still returns it. Off by default. `useKeyboardVisible(enabled?)`
+is exported too, for a caller that just wants to know whether the software keyboard is up.
