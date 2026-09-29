@@ -54,6 +54,22 @@ function useMyGameLoop(step: (dt: number) => void, enabled: boolean) {
 }
 ```
 
+### Math-only entry: `@tastic/core/math`
+
+`clamp` and the `Vec2` helpers (`add`, `distance`, `dot`, `length`, `normalize`, `scale`,
+`subtract`) are also published on their own entry point, with no imports and no side effects:
+
+```ts
+import { clamp, length, scale, type Vec2 } from '@tastic/core/math'
+```
+
+The root entry re-exports the same functions, so existing imports keep working. Headless code
+(`@tastic/input`, `@tastic/physics`, `@tastic/sprites`, or an app's own physics step) should prefer the
+subpath: importing the root barrel loads every app-level module behind it (`expo-system-ui`,
+`expo-status-bar`, AsyncStorage, `@tastic/edge-guard`, `@rific/core`) and runs
+`useThemedRootBackground`'s import-time root background call. `package.json`'s `sideEffects` lists only
+the root entry, so bundlers can still tree-shake the math entry.
+
 ## Orientation tracking
 
 An app permanently locked to portrait at the OS level (no native rotation left to read) can still
@@ -379,9 +395,9 @@ npm install @tastic/core
 
 ## Peer dependencies
 
-`react` (>=19.0.0) and `react-native` (>=0.76.0) — required for the whole package. `Vec2`/`clamp`/
-`computeClampedDt` are plain, dependency-free TypeScript in source, but the package ships as one
-bundle alongside the hooks that do need them, so both are needed to load any of it. This is a React
+`react` (>=19.0.0) and `react-native` (>=0.76.0) — required for the whole package. `Vec2` and `clamp` are
+also available from the dependency-free `@tastic/core/math` entry (see Usage), which loads without
+any of the peers below; the root entry needs all of them. This is a React
 Native toolkit either way, so every real consumer already has both installed regardless.
 
 `@react-native-async-storage/async-storage` (>=2.0.0) and `@tastic/edge-guard` (>=0.1.0) are real
@@ -389,6 +405,9 @@ Native toolkit either way, so every real consumer already has both installed reg
 directly there, the same call `RotationAwareStatusBar` already made for `expo-status-bar`: every
 app in this package's own fleet already depends on both directly at the same versions, so requiring
 them package-wide adds no new install burden.
+
+`@rific/core` (>=0.1.2) is a real (non-peer-optional) dependency, needed by the orientation-lock
+settings context, which is built on its `createSettingsContext`.
 
 `expo-system-ui` (>=57.0.0) is a real (non-peer-optional) dependency too, needed only by
 `useThemedRootBackground` — imported directly there, the same way `createGameSettingsProvider`

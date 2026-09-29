@@ -21,7 +21,11 @@
   },
   "license": "MIT",
   "author": "Jay Deaton",
-  "sideEffects": false,
+  "sideEffects": [
+    "./src/useThemedRootBackground.ts",
+    "./dist/index.js",
+    "./dist/index.mjs"
+  ],
   "type": "commonjs",
   "exports": {
     ".": {
@@ -30,6 +34,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
+    },
+    "./math": {
+      "react-native": "./src/math/index.ts",
+      "browser": "./src/math/index.ts",
+      "types": "./dist/math/index.d.ts",
+      "import": "./dist/math/index.mjs",
+      "require": "./dist/math/index.js"
     }
   },
   "main": "dist/index.js",
