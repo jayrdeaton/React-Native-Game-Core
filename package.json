@@ -47,6 +47,13 @@
   "module": "dist/index.mjs",
   "react-native": "src/index.ts",
   "types": "dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "math": [
+        "./dist/math/index.d.ts"
+      ]
+    }
+  },
   "files": [
     "dist",
     "src",
