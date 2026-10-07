@@ -3,6 +3,7 @@ import { Platform, useWindowDimensions } from 'react-native'
 
 import { useOrientationLockSettings } from './OrientationLockContext'
 import { OrientationMode } from './OrientationMode'
+import { getViewRotation, ViewRotation } from './rotation'
 import { useKeyboardVisible } from './useKeyboardVisible'
 
 // Minimal local mirror of expo-sensors' own DeviceMotion export — covering only the members used
@@ -113,6 +114,40 @@ function candidateFromGravity(x: number, y: number): Candidate | null {
   return null
 }
 
+// The four holds candidateFromGravity can produce, in the order a disallowed reading falls back
+// through (portrait first, upside-down last). Angles are always read through getViewRotation rather
+// than restated here, so allowedRotations/the lock's `rotation` stay in the exact terms useRotation()
+// returns even if that function's landscape sign is ever flipped (see its own doc).
+const HOLDS: readonly Candidate[] = [
+  { orientationMode: 'faceToFace', p1OnRight: true, upsideDown: false },
+  { orientationMode: 'sideBySide', p1OnRight: true, upsideDown: false },
+  { orientationMode: 'sideBySide', p1OnRight: false, upsideDown: false },
+  { orientationMode: 'faceToFace', p1OnRight: true, upsideDown: true }
+]
+
+function rotationOf(hold: Candidate): ViewRotation {
+  return getViewRotation(hold.orientationMode, hold.p1OnRight, hold.upsideDown)
+}
+
+// No list (or an empty one) means no restriction.
+function isAllowed(hold: Candidate, allowedRotations?: readonly ViewRotation[]): boolean {
+  return !allowedRotations?.length || allowedRotations.includes(rotationOf(hold))
+}
+
+// Where the committed reading has to move to, if anywhere: the lock's restored angle wins when it's
+// allowed (and marks the reading resolved - it's the player's own choice, not a guess); otherwise a
+// reading that isn't allowed (the unresolved portrait default in a landscape-only app, or a hold
+// whose angle was just switched off) moves to the first allowed hold, keeping its resolved flag.
+// Returns null when nothing needs to change, which is what stops the render-time adjustment below
+// from looping.
+function adjustedState(state: OrientationState, allowedRotations?: readonly ViewRotation[], lockedRotation?: ViewRotation): OrientationState | null {
+  const locked = lockedRotation === undefined ? undefined : HOLDS.find((hold) => rotationOf(hold) === lockedRotation)
+  if (locked && isAllowed(locked, allowedRotations)) return state.resolved && sameCandidate(locked, state) ? null : { ...locked, resolved: true }
+  if (isAllowed(state, allowedRotations)) return null
+  const fallback = HOLDS.find((hold) => isAllowed(hold, allowedRotations))
+  return fallback ? { ...fallback, resolved: state.resolved } : null
+}
+
 // The actual sensor subscription — exactly one instance of this ever runs, inside
 // OrientationProvider, rather than one per call site. Screens navigating away and back (title ->
 // lobby -> game -> lobby, ...) each used to mount their OWN independent hook instance, which meant
@@ -130,13 +165,34 @@ function candidateFromGravity(x: number, y: number): Candidate | null {
 // every sample, so unlocking restarts the normal COMMIT_MS hold-steady debounce from scratch rather
 // than instantly applying a tilt that was already "settled" during the lock. Web derives its reading
 // from window dimensions, not this sensor path, and isn't affected.
-export function useOrientationStateSource(deviceMotion?: DeviceMotionModule, hold = false): OrientationState {
+//
+// `allowedRotations` (see OrientationProvider's prop of the same name) drops any sensor candidate
+// whose angle isn't listed, exactly as if the phone were lying flat: the last committed reading just
+// holds. `lockedRotation` is a restored lock's angle, adopted as the committed reading outright.
+export interface OrientationStateSourceOptions {
+  hold?: boolean
+  allowedRotations?: readonly ViewRotation[]
+  lockedRotation?: ViewRotation
+}
+
+export function useOrientationStateSource(deviceMotion?: DeviceMotionModule, { hold = false, allowedRotations, lockedRotation }: OrientationStateSourceOptions = {}): OrientationState {
   const [state, setState] = useState<OrientationState>(DEFAULT_STATE)
-  // Read by the sensor listener without resubscribing it every time the lock flips.
+  // Adjusted during render rather than in an effect, so not even the first frame paints a reading
+  // that's disallowed or that a restored lock says is wrong (the same render-time pattern
+  // useOrientationState uses below). latestSnapshot follows along, like every other commit.
+  const adjusted = Platform.OS === 'web' ? null : adjustedState(state, allowedRotations, lockedRotation)
+  if (adjusted) {
+    latestSnapshot = adjusted
+    setState(adjusted)
+  }
+  // Read by the sensor listener without resubscribing it every time the lock flips or the caller
+  // hands in a fresh (but equal) allowedRotations array literal.
   const holdRef = useRef(false)
+  const allowedRotationsRef = useRef(allowedRotations)
   const shouldHold = hold && state.resolved
   useEffect(() => {
     holdRef.current = shouldHold
+    allowedRotationsRef.current = allowedRotations
   })
 
   // Web has no accelerometer at all — falls back to exactly today's useWindowDimensions-based
@@ -178,7 +234,7 @@ export function useOrientationStateSource(deviceMotion?: DeviceMotionModule, hol
         return
       }
       const candidate = candidateFromGravity(accelerationIncludingGravity.x, accelerationIncludingGravity.y)
-      if (!candidate) {
+      if (!candidate || !isAllowed(candidate, allowedRotationsRef.current)) {
         pendingCandidate = null
         return
       }
@@ -240,11 +296,24 @@ export interface OrientationStateProviderProps {
   // Opt-in, default false. When true, the reading every consumer gets is PORTRAIT (`faceToFace`, not upside-down) for as long as
   // the software keyboard is showing - see OrientationProvider's own doc.
   portraitWhileKeyboard?: boolean
+  // Opt-in allow-list of the angles the reading may commit to - see OrientationProvider's own doc.
+  allowedRotations?: readonly ViewRotation[]
 }
 
-export function OrientationStateProvider({ children, deviceMotion, freezeWhileLocked = false, portraitWhileKeyboard = false }: OrientationStateProviderProps) {
-  const { settings } = useOrientationLockSettings()
-  const state = useOrientationStateSource(deviceMotion, freezeWhileLocked && settings.locked)
+export function OrientationStateProvider({ children, deviceMotion, freezeWhileLocked = false, portraitWhileKeyboard = false, allowedRotations }: OrientationStateProviderProps) {
+  const { settings, set } = useOrientationLockSettings()
+  const frozen = freezeWhileLocked && settings.locked
+  const state = useOrientationStateSource(deviceMotion, { hold: frozen, allowedRotations, lockedRotation: frozen ? settings.rotation : undefined })
+  // Keeps the lock's `rotation` equal to the frozen reading, so onLockChange hands the app something
+  // to persist: recorded once a locked reading exists (immediately when locking mid-session; at the
+  // first confident sample for a lock restored without one), rewritten if allowedRotations moves the
+  // reading off it, and cleared on unlock so the NEXT lock records the then-current reading instead of
+  // re-adopting a stale one. Native only, like the freeze itself.
+  const rotation = frozen && state.resolved ? getViewRotation(state.orientationMode, state.p1OnRight, state.upsideDown) : undefined
+  useEffect(() => {
+    if (Platform.OS === 'web' || !freezeWhileLocked || (frozen && !state.resolved)) return
+    if (settings.rotation !== rotation) set({ rotation })
+  }, [freezeWhileLocked, frozen, state.resolved, rotation, settings.rotation, set])
   // The sensor reading above is left untouched (and so is getOrientationSnapshot's module-level copy of it - that is the physical
   // hold, which a game freezing its own layout for a match wants regardless of a keyboard): only what CONSUMERS read is overridden
   // while the keyboard is up. A new object only when the keyboard state flips, so consumers don't re-render on unrelated renders.

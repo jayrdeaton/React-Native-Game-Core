@@ -1,6 +1,13 @@
 import { createSettingsContext } from '@rific/core'
 
-export type OrientationLockSettings = { locked: boolean }
+import { ViewRotation } from './rotation'
+
+// `rotation` is the angle the lock is holding, so an app can persist it next to `locked` and a
+// relaunch reopens in the orientation the player actually locked to rather than whatever the
+// sensor (or the unresolved portrait default) says at launch. Only maintained under
+// OrientationProvider's `freezeWhileLocked`: recorded once a locked reading exists, cleared on
+// unlock, and restored from lockInitialValue - see OrientationStateProvider.
+export type OrientationLockSettings = { locked: boolean; rotation?: ViewRotation }
 
 // Unlocked by default — matches every existing app's own GameSettings default for this same
 // setting today (nothing pins the layout until the player deliberately opts in).

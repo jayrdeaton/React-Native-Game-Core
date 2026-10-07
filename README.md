@@ -132,17 +132,50 @@ flag flips (or at its own mount), and every call site must be handed the same fl
 `useOrientationLock().locked` is true instead:
 
 ```tsx
-<OrientationProvider deviceMotion={DeviceMotion} lockInitialValue={{ locked }} onLockChange={save} freezeWhileLocked>
+<OrientationProvider deviceMotion={DeviceMotion} lockInitialValue={{ locked, rotation }} onLockChange={save} freezeWhileLocked>
 ```
 
 Every consumer then sees the reading that was current when the user locked — including a component that
-mounts *after* the lock — with no per-call `locked` plumbing (the per-call argument still works and is
-harmless). Unlocking resumes through the normal hold-steady debounce (a tilt held during the lock does
-not commit the instant you unlock). If the lock is already on at launch and no confident reading exists
-yet, the first one is latched rather than pinning the unresolved default. It is opt-in because it
-changes semantics: locking freezes *every* consumer of the shared reading, so an app that wants a
-screen's lock to be independent of another's should leave it off. Native only (web derives its reading
-from window size).
+mounts *after* the lock — with no per-call `locked` plumbing (the per-call argument still works, but
+see the relaunch note below). Unlocking resumes through the normal hold-steady debounce (a tilt held
+during the lock does not commit the instant you unlock). It is opt-in because it changes semantics:
+locking freezes *every* consumer of the shared reading, so an app that wants a screen's lock to be
+independent of another's should leave it off. Native only (web derives its reading from window size).
+
+**Surviving a relaunch.** While frozen, the lock setting also carries the frozen angle as `rotation`
+(a `ViewRotation`), so `onLockChange` hands you `{ locked, rotation }` to persist: it's recorded the
+moment you lock and cleared (`undefined`) when you unlock. Hand both back through `lockInitialValue`
+and a relaunch opens in exactly the locked orientation from the very first frame, instead of portrait
+or whichever way the phone happens to be held at launch. A lock restored *without* a `rotation` (saved
+before this existed) latches the first confident reading and records it. If the provider mounts before
+your settings finish loading, a `lockInitialValue` that changes afterward is adopted too (requires
+`@rific/core` 0.3.0+). Leave per-call-site `locked` arguments off when relying on this: a call site
+that mounts before the restored lock reaches the provider freezes on the pre-load reading instead.
+
+#### Optional: allow only some orientations (`allowedRotations`)
+
+Pass the angles the shared reading may commit to, in `useRotation()`'s own terms:
+
+| Angle | Phone held |
+|---|---|
+| `0` | portrait |
+| `180` | upside down |
+| `90` | turned counter-clockwise (top edge pointing left) |
+| `-90` | turned clockwise (top edge pointing right) |
+
+```tsx
+<OrientationProvider deviceMotion={DeviceMotion} allowedRotations={[0, 90, -90]}> {/* no upside down */}
+<OrientationProvider deviceMotion={DeviceMotion} allowedRotations={[0, 180]}> {/* portrait only, either way up */}
+<OrientationProvider deviceMotion={DeviceMotion} allowedRotations={[90, -90]}> {/* landscape only */}
+```
+
+A hold whose angle isn't listed is ignored the way iOS ignores an unsupported interface orientation:
+the last allowed reading just stays put. If the current reading isn't allowed (the unresolved portrait
+default in a landscape-only app, or an angle switched off at runtime), it moves to the first allowed
+of `0`, `-90`, `90`, `180` before anything paints. Omitted or empty means all four. An inline array
+literal is fine (it never resubscribes the sensor). `portraitWhileKeyboard` still wins while the
+keyboard is up, even if `0` isn't listed. A restored lock `rotation` that isn't allowed is ignored.
+Native only, like `freezeWhileLocked`.
 
 ### Whole-screen content: `FakeLandscapeView` / `useRotatedWindowDimensions`
 
