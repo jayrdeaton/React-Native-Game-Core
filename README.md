@@ -30,19 +30,11 @@ whichever package happens to need it first.
   [`@tastic/split-screen`](https://github.com/jayrdeaton/react-native-split-screen) is built on top
   of this for its two-player zone layout, and [`@tastic/hud`](https://github.com/jayrdeaton/react-native-hud)'s
   popovers/dialogs read `useRotation()` directly to stay legible inside a rotated zone.
-- **`createGameSettingsProvider(config)`** — generalizes the identical `GameSettingsProvider`/
-  `useGameSettings()` pair hand-rolled once per app in AirHockey, BoxHockey, Pong, and LightCycles
-  (an AsyncStorage-backed `settings` + `setSettings`, an `activeRoundSettings`/`commitRoundSettings`
-  snapshot pair, and `isActivelyPlaying` wiring into `@tastic/edge-guard`'s `useEdgeGestureGuard`).
-  See its own section below.
 - **`useThemedRootBackground(dark, gestureEnabled?)`** — fixes an OS-level corner-flash during
   react-native-screens push/pop transitions (the root window's own background — white by default —
   showing through at the display's rounded corners while a transition is mid-flight) by syncing that
   root window's background to the live theme via `expo-system-ui`, and returning the matching screen
   options for a root `<Stack>`. See its own section below.
-- **`SettingsAndProfilesGate`** — generalizes the nested `'settings'`-then-`'profiles'` splash-gate
-  composition hand-rolled 3 different ways across AirHockey, BoxHockey, Pong, and LightCycles, all on
-  top of `@rific/splash-gate`'s `createGate`. See its own section below.
 
 ## Usage
 
@@ -247,10 +239,9 @@ rotated, and shows it only at `0°`:
 ```tsx
 import { RotationAwareStatusBar } from '@tastic/core'
 
-function AppRotationAwareStatusBar() {
-  const { settings } = useGameSettings() // or your own equivalent lockOrientation source
-  return <RotationAwareStatusBar locked={settings.lockOrientation} />
-}
+// With OrientationProvider's freezeWhileLocked, the shared reading already freezes while locked,
+// so no `locked` prop is needed:
+<RotationAwareStatusBar />
 ```
 
 **`locked` must be threaded through from your app's own "Lock Orientation" setting — the same value
@@ -274,48 +265,6 @@ provider tree actually holds the `lockOrientation` value it reads — your setti
 not in a root layout component that itself renders that provider. Put it outside that tree and the
 hook backing `settings.lockOrientation` runs without the context it needs, which either crashes or
 silently reads stale/default data depending on how that hook is written.
-
-## Game settings: `createGameSettingsProvider`
-
-Every `@tastic/*` game app persists a `settings` object to AsyncStorage, exposes it (and a
-`setSettings` patcher) via context, snapshots it into a locked `activeRoundSettings` when a round
-starts, and wires a live `isActivelyPlaying` flag into
-[`@tastic/edge-guard`](https://github.com/jayrdeaton/react-native-edge-guard)'s
-`useEdgeGestureGuard`. Call this factory once, at module scope, with your own settings type instead
-of hand-rolling that ~100-line file again:
-
-```ts
-// src/hooks/useGameSettings.tsx
-import { createGameSettingsProvider } from '@tastic/core'
-
-import { GameSettings } from '@/types'
-import { DEFAULT_SETTINGS, isValidSettings } from '@/utils/gameSettingsValidation'
-
-export const { GameSettingsProvider, useGameSettings } = createGameSettingsProvider<GameSettings>({
-  storageKey: 'yourgame.settings',
-  defaultSettings: DEFAULT_SETTINGS,
-  isValidSettings
-})
-```
-
-`TSettings` must include a `deferBottomEdgeGestures: boolean` field — the `useEdgeGestureGuard` call
-inside the returned `GameSettingsProvider` unconditionally reads it, combined with the live
-`isActivelyPlaying` flag also exposed on the returned context value. `isValidSettings` must be a type
-predicate (`(value: unknown) => value is TSettings`), matching what every app's own
-`gameSettingsValidation.ts` already writes by hand — nothing to adapt to pass yours in directly.
-
-A stored blob is merged onto `defaultSettings` *before* being validated, not after: a blob written
-before some field existed on `TSettings` is missing that field entirely, and validating it as-is
-would reject the whole blob over that one missing field rather than just losing the field(s) it
-predates. `loaded` flips `true` once this initial read has resolved one way or another (a real
-value, nothing stored, a corrupt blob, or unavailable storage all count) — thread it into your own
-splash gate the same way every consuming app already does, so nothing downstream ever reads a
-still-loading value.
-
-`activeRoundSettings`/`commitRoundSettings` and `isActivelyPlaying`/`setIsActivelyPlaying` are held
-only in memory, never persisted — a round-start screen calls `commitRoundSettings(settings)` once to
-lock in the round about to play, and whatever owns "is a round actually live right now" calls
-`setIsActivelyPlaying` to keep Edge Guard scoped to real gameplay.
 
 ## Root window background: `useThemedRootBackground`
 
@@ -364,63 +313,16 @@ per-file boundary for a downstream bundler to exploit by dropping just this call
 hook itself — but it's worth knowing about if you're auditing why a package declaring
 `"sideEffects": false` still has one.
 
-## Splash gating: `SettingsAndProfilesGate`
-
-For an app built on the AsyncStorage-backed `GameSettingsProvider`/`ProfilesProvider` architecture
-plus `@rific/splash-gate`'s `createGate` (AirHockey, BoxHockey, Pong, and LightCycles) — not Snake,
-which persists its settings through Redux Toolkit and `redux-persist`'s own `PersistGate` instead, an
-entirely separate mechanism — `SettingsAndProfilesGate` generalizes the nested
-`'settings'`-then-`'profiles'` gate composition each of those 4 apps had hand-rolled 3 different ways
-(a merged `GatedApp` component in two of them, two separately-named components in the other two): a
-`'settings'` gate outside a `'profiles'` gate around everything that reads either provider's context,
-so no screen mounts on stale AsyncStorage defaults before the real (or, for profiles,
-shared-App-Group-reconciled) value has loaded.
-
-```tsx
-import { SettingsAndProfilesGate } from '@tastic/core'
-
-import { useGameSettings } from '@/hooks/useGameSettings'
-import { useProfiles } from '@/hooks/useProfiles'
-import { SplashGate } from '@/utils/splashGate'
-
-function GatedApp({ children }: { children: React.ReactNode }) {
-  const { loaded: settingsLoaded } = useGameSettings()
-  const { loaded: profilesLoaded } = useProfiles()
-
-  return (
-    <SettingsAndProfilesGate Gate={SplashGate} settingsLoaded={settingsLoaded} profilesLoaded={profilesLoaded}>
-      {children}
-    </SettingsAndProfilesGate>
-  )
-}
-```
-
-`Gate` takes the app's own bound `Gate` component from `createGate([...])` **as a prop** — this
-package deliberately never takes a dependency on `@rific/splash-gate` itself, the same "take the
-concrete thing as a prop, don't import what produces it" choice `OrientationProvider` already makes
-for `deviceMotion`/`expo-sensors`. A per-app bound `Gate` is inherently non-shareable anyway:
-`createGate()` returns a closure holding a real, singleton, per-app pending-`Set` and calls the real
-`SplashScreen.hideAsync()`, so there's no single shared instance this package could own even if it
-wanted to. The prop type this component expects (`(props: { gate: 'settings' | 'profiles'; ready:
-boolean; children: ReactNode }) => ReactNode`) is deliberately narrower than any real app's bound
-`Gate` (typed for that app's full gate-name union, e.g. also `'theme'`/`'haptics'`/`'sound'`/
-`'fonts'`) — TypeScript's contravariant parameter checking accepts this safely as long as
-`'settings'`/`'profiles'` are members of your own union.
-
-`settingsLoaded`/`profilesLoaded` are plain boolean props rather than hook calls this component makes
-itself, because `useGameSettings()`/`useProfiles()` are app-local hooks in every consumer, not
-exported by any shared package — you still need your own small wrapper (`GatedApp` above, or whatever
-you call it) beneath both providers to supply them. Nesting order (settings outer, profiles inner)
-matches every app's prior implementation, and it's preserved even though it has no observable effect
-today, since no consumer currently passes a custom `fallback` to either gate (both default to `null`).
-
 ## Install
 
 Published to the public npm registry as `@tastic/core`. Everything described above, including
 `FakeLandscapeView`, `useRotatedWindowDimensions`, `rotateDimensions` (moved here from
 `@tastic/split-screen`, which never had any real dependency on that package's own two-player
-pieces), `RotationAwareStatusBar`, `useThemedRootBackground`, and `SettingsAndProfilesGate`, is live
-on npm.
+pieces), `RotationAwareStatusBar` and `useThemedRootBackground`, is live on npm.
+
+Game settings are not this package's job anymore: `createGameSettingsProvider` and
+`SettingsAndProfilesGate` were removed on 2026-10-07. The games keep their settings in Redux with
+`@rific/core`'s `createSettingsSlice`, and `PersistGate` already holds rendering until they load.
 
 ```bash
 npm install @tastic/core
@@ -433,21 +335,12 @@ also available from the dependency-free `@tastic/core/math` entry (see Usage), w
 any of the peers below; the root entry needs all of them. This is a React
 Native toolkit either way, so every real consumer already has both installed regardless.
 
-`@react-native-async-storage/async-storage` (>=2.0.0) and `@tastic/edge-guard` (>=0.1.0) are real
-(non-peer-optional) dependencies too, needed only by `createGameSettingsProvider` — imported
-directly there, the same call `RotationAwareStatusBar` already made for `expo-status-bar`: every
-app in this package's own fleet already depends on both directly at the same versions, so requiring
-them package-wide adds no new install burden.
-
 `@rific/core` (>=0.1.2) is a real (non-peer-optional) dependency, needed by the orientation-lock
 settings context, which is built on its `createSettingsContext`.
 
 `expo-system-ui` (>=57.0.0) is a real (non-peer-optional) dependency too, needed only by
-`useThemedRootBackground` — imported directly there, the same way `createGameSettingsProvider`
-already depends directly on `@react-native-async-storage/async-storage` and `@tastic/edge-guard`
-above: every app in this package's own fleet already depends on it directly at the same range, so
-requiring it package-wide adds no new install burden. `SettingsAndProfilesGate` needs no new peer
-dependency of its own, since it never imports `@rific/splash-gate` — see its own section above.
+`useThemedRootBackground`, imported directly there: every app in this package's own fleet already
+depends on it directly at the same range, so requiring it package-wide adds no new install burden.
 
 **Deliberately not a dependency: `expo-sensors`.** Orientation tracking needs it, but this package
 never imports it directly — see the injection pattern in the Orientation tracking section above.

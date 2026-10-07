@@ -15,7 +15,7 @@ npm run build       # tsup, outputs CJS + ESM + types to dist/
 npm run build:watch # tsup --watch
 npm run lint         # ESLint check
 npm run fix           # ESLint --fix
-npm test              # Jest (176 tests)
+npm test              # Jest (160 tests)
 npm run test:watch    # Jest --watchAll
 npm run typecheck     # TypeScript type check (tsc --noEmit)
 npm run verify         # lint + test + typecheck + build, in that order
@@ -70,7 +70,11 @@ Platform resolution note: `package.json`'s `"react-native"` and `"browser"` expo
 
 - Framework: Jest (`@infinitetoken/jest-config/react-native`), jsdom environment
 - No mocks — nothing in `src/` imports `react-native` directly
-- 176 tests across 29 suites in `src/__tests__/` (counts as of 2026-10-07)
+- 160 tests across 27 suites in `src/__tests__/` (counts as of 2026-10-07)
+
+## Removed: game settings and splash gating (2026-10-07)
+
+`createGameSettingsProvider` and `SettingsAndProfilesGate` (and with them the `@react-native-async-storage/async-storage` and `@tastic/edge-guard` dependencies, their Jest mocks and `moduleNameMapper` entries) were deleted on 2026-10-07. Jay moved every game's settings into Redux, built with `@rific/core`'s existing `createSettingsSlice` (a second settings factory here would have been a duplicate); `PersistGate` makes a settings splash gate unnecessary, and each game's `GatedApp` now gates profiles only with its own bound `SplashGate`. The game-side shape (identical `liveplaySlice.ts`, `useSettings.ts`, `EdgeGuardBridge`, `_layout.tsx` across AirHockey/BoxHockey/LightCycles/Pong) is documented in each game's CLAUDE.md, "Settings and Lock Orientation". The 2026-09-17/18 sections below are history.
 
 ## Bug fixes (2026-09-17)
 
