@@ -23,6 +23,8 @@ whichever package happens to need it first.
   likely on touch (native, or a touch-primary web viewport) vs. likely to have a keyboard/mouse (a
   wide-viewport web browser with a fine pointer)? Useful for deciding whether to offer a
   keyboard-scheme picker or lean on touch/swipe controls. Always `true` on native.
+- **`useBackgroundPause(shouldPause)`** - latches a pause when the app leaves the foreground mid-match
+  and holds it until the player taps Resume. See its own section below.
 - **Orientation tracking** — `OrientationProvider`, `useOrientationState`, `useRotation`,
   `useOrientationLock`, `FakeLandscapeView`, `useRotatedWindowDimensions`, and the pure
   `getViewRotation`/`getFixedZoneRotation`/`getOpposingZoneRotation`/`rotateInsets`/
@@ -202,6 +204,12 @@ margins, `zIndex`, `display`, `transform`), and the inner container that lays ou
 the 180° rotate. So `style={[StyleSheet.absoluteFill, ...]}` overlays stay out of flow and `{ flex: 1,
 alignItems: 'center' }` still centers. (`boxSizing: 'content-box'` with an explicit size is not supported.)
 
+Two more optional props. `rotation` is an explicit angle that wins over the orientation props and `locked`,
+for a caller that already has the exact angle it wants (a dialog handed its caller's live rotation, or `0` for
+one already inside a turned frame). `passThrough` makes the inner view `box-none` too (the outer one always is),
+so touches fall through the frame's own boxes to whatever is beneath it and only `children` claim them: use it
+for a frame laid over other content, such as a dialog layer or a root-level overlay.
+
 **Safe for tap-driven content** — React Native's own touch responder system hit-tests against the
 rendered/transformed layout correctly. **NOT safe for continuous gesture tracking**
 (react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) —
@@ -312,6 +320,28 @@ bundles the whole package into a single `dist/index.js`/`dist/index.mjs` per for
 per-file boundary for a downstream bundler to exploit by dropping just this call while keeping the
 hook itself — but it's worth knowing about if you're auditing why a package declaring
 `"sideEffects": false` still has one.
+
+## Pausing when the app backgrounds: `useBackgroundPause`
+
+A phone call, an app switch or a swipe into Control Center mid-rally would otherwise hand the player a
+ball already in play the moment they come back. `useBackgroundPause(shouldPause)` returns
+`{ backgroundPaused, resume }`: `backgroundPaused` turns true when `AppState` leaves `'active'`
+(`'background'`, or iOS's `'inactive'`) while `shouldPause()` returns true, and it stays true after the
+app returns. Only `resume()` clears it, so fold it into the game's own `paused` and show a Paused dialog
+whose Resume button calls `resume()`:
+
+```tsx
+import { useBackgroundPause } from '@tastic/core'
+
+const { backgroundPaused, resume } = useBackgroundPause(() => phaseRef.current === 'playing' && !dialogOpenRef.current)
+const paused = dialogOpen || backgroundPaused
+```
+
+`shouldPause` is a lazy getter, read only at the moment the app leaves the foreground, so it can look at
+state that is computed after `paused` (the game's phase) without a circular render dependency. Return
+false when there is nothing to protect (the match is over) or the game's own dialog already holds the
+pause. Web needs nothing extra: react-native-web's `AppState` reports `'background'` while the tab is
+hidden.
 
 ## Install
 

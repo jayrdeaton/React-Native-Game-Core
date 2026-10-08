@@ -2,7 +2,7 @@ import { ReactNode } from 'react'
 import { StyleProp, StyleSheet, useWindowDimensions, View, ViewStyle } from 'react-native'
 
 import { OrientationMode } from './OrientationMode'
-import { getViewRotation, rotateDimensions, toRotationStyle } from './rotation'
+import { getViewRotation, rotateDimensions, toRotationStyle, ViewRotation } from './rotation'
 import { useOrientationState } from './useOrientationState'
 
 export interface FakeLandscapeViewProps {
@@ -18,6 +18,15 @@ export interface FakeLandscapeViewProps {
   // Only consulted when the ambient default is actually being used (i.e. when orientationMode/
   // p1OnRight/upsideDown are all omitted) — matches useOrientationState's own `locked` param.
   locked?: boolean
+  // An explicit angle that wins over orientationMode/p1OnRight/upsideDown/locked, for a caller that
+  // already has the exact rotation it wants (a dialog handed its caller's live rotation, or 0 for
+  // one that already sits inside a turned frame). The ambient reading stays subscribed regardless.
+  rotation?: ViewRotation
+  // Lets touches fall through the frame's own boxes to whatever is beneath it, so only its children
+  // claim them: the inner View becomes box-none too (the outer one always is). For a frame laid OVER
+  // other content (a root-level overlay or dialog layer); a screen that owns the whole window leaves
+  // it off.
+  passThrough?: boolean
   style?: StyleProp<ViewStyle>
   children: ReactNode
 }
@@ -58,7 +67,7 @@ export interface FakeLandscapeViewProps {
 // rendered/transformed layout correctly. NOT safe for continuous gesture tracking
 // (react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) —
 // never wrap the game board/touch layer in this.
-export function FakeLandscapeView({ orientationMode, p1OnRight, upsideDown, locked = false, style, children }: FakeLandscapeViewProps) {
+export function FakeLandscapeView({ orientationMode, p1OnRight, upsideDown, locked = false, rotation: rotationOverride, passThrough = false, style, children }: FakeLandscapeViewProps) {
   const { width, height } = useWindowDimensions()
   // Always subscribed, even when every field below ends up overridden by an explicit prop — the
   // ambient reading has to stay live for the zero-prop case to actually update as the phone moves,
@@ -69,14 +78,17 @@ export function FakeLandscapeView({ orientationMode, p1OnRight, upsideDown, lock
   const resolvedOrientationMode = orientationMode ?? ambient.orientationMode
   const resolvedP1OnRight = p1OnRight ?? ambient.p1OnRight
   const resolvedUpsideDown = upsideDown ?? ambient.upsideDown
-  const rotation = getViewRotation(resolvedOrientationMode, resolvedP1OnRight, resolvedUpsideDown)
+  const rotation = rotationOverride ?? getViewRotation(resolvedOrientationMode, resolvedP1OnRight, resolvedUpsideDown)
+  const innerPointerEvents = passThrough ? 'box-none' : undefined
 
   const rotated = rotation === 90 || rotation === -90
   if (!rotated) {
     const { outer, inner } = splitStyle(StyleSheet.flatten(style))
     return (
       <View style={outer} pointerEvents='box-none'>
-        <View style={[styles.fillOuter, inner, toRotationStyle(rotation)]}>{children}</View>
+        <View style={[styles.fillOuter, inner, toRotationStyle(rotation)]} pointerEvents={innerPointerEvents}>
+          {children}
+        </View>
       </View>
     )
   }
@@ -84,7 +96,9 @@ export function FakeLandscapeView({ orientationMode, p1OnRight, upsideDown, lock
   const swapped = rotateDimensions(width, height, rotation)
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents='box-none'>
-      <View style={[style, styles.absolute, { height: swapped.height, left: (width - swapped.width) / 2, top: (height - swapped.height) / 2, transform: [{ rotate: `${rotation}deg` }], width: swapped.width }]}>{children}</View>
+      <View style={[style, styles.absolute, { height: swapped.height, left: (width - swapped.width) / 2, top: (height - swapped.height) / 2, transform: [{ rotate: `${rotation}deg` }], width: swapped.width }]} pointerEvents={innerPointerEvents}>
+        {children}
+      </View>
     </View>
   )
 }

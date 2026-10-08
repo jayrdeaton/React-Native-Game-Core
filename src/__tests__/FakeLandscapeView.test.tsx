@@ -220,6 +220,20 @@ describe('FakeLandscapeView', () => {
       expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
     })
 
+    it('an explicit rotation wins over the ambient reading', () => {
+      const style = { backgroundColor: 'purple' }
+      render(
+        <FakeLandscapeView rotation={0} style={style}>
+          hello
+        </FakeLandscapeView>,
+        { wrapper }
+      )
+
+      commit({ x: 0, y: 8 }) // the ambient reading commits 180°
+
+      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
+    })
+
     it('freezes at whatever the ambient reading was when locked became true, ignoring a later tilt', () => {
       const style = { backgroundColor: 'purple' }
       const { rerender } = render(
@@ -362,6 +376,68 @@ describe('FakeLandscapeView 0/180 layout equivalence with the old single-View im
       unmount()
     }
   })
+})
+
+describe('FakeLandscapeView explicit rotation', () => {
+  beforeEach(() => {
+    ;(View as unknown as jest.Mock).mockClear()
+  })
+
+  it('wins over explicit orientation props, in both directions', () => {
+    const style = { flex: 1 }
+    const { unmount } = render(
+      <FakeLandscapeView {...ZERO} rotation={90} style={style}>
+        x
+      </FakeLandscapeView>
+    )
+    expect(lastViews().inner).toEqual({ ...style, position: 'absolute', width: 874, height: 402, left: (402 - 874) / 2, top: (874 - 402) / 2, transform: [{ rotate: '90deg' }] })
+    unmount()
+
+    render(
+      <FakeLandscapeView {...RIGHT} rotation={0} style={style}>
+        x
+      </FakeLandscapeView>
+    )
+    expect(lastViews().inner).toEqual({ ...FILL_INNER })
+    expect(lastViews().outer).toEqual(style)
+  })
+
+  it('180 rotates in place without swapping the footprint', () => {
+    render(
+      <FakeLandscapeView rotation={180} style={FLEX_ONE}>
+        x
+      </FakeLandscapeView>
+    )
+    expect(lastViews().inner).toEqual({ ...FILL_INNER, transform: [{ rotate: '180deg' }] })
+  })
+})
+
+describe('FakeLandscapeView passThrough', () => {
+  beforeEach(() => {
+    ;(View as unknown as jest.Mock).mockClear()
+  })
+
+  for (const rotation of [0, 90, 180, -90] as const) {
+    it(`makes both views box-none at ${rotation}`, () => {
+      render(
+        <FakeLandscapeView rotation={rotation} passThrough style={FLEX_ONE}>
+          x
+        </FakeLandscapeView>
+      )
+      const { outerProps, innerProps } = lastViews()
+      expect(outerProps.pointerEvents).toBe('box-none')
+      expect(innerProps.pointerEvents).toBe('box-none')
+    })
+
+    it(`leaves the inner view's touches alone by default at ${rotation}`, () => {
+      render(
+        <FakeLandscapeView rotation={rotation} style={FLEX_ONE}>
+          x
+        </FakeLandscapeView>
+      )
+      expect(lastViews().innerProps.pointerEvents).toBeUndefined()
+    })
+  }
 })
 
 // Regression: FakeLandscapeView used to return a different element tree per angle (bare View at 0°,

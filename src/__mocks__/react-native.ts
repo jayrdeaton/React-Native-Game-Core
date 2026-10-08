@@ -44,3 +44,14 @@ export const Keyboard = {
   })
 }
 export const emitKeyboard = (event: string) => keyboardListeners[event]?.forEach((listener) => listener())
+
+// Added for useBackgroundPause.test.tsx: an AppState whose 'change' listeners a test can fire by hand, same shape as Keyboard above.
+type AppStateListener = (state: string) => void
+export const appStateListeners: Record<string, Set<AppStateListener>> = {}
+export const AppState = {
+  addEventListener: jest.fn((event: string, listener: AppStateListener) => {
+    ;(appStateListeners[event] ??= new Set()).add(listener)
+    return { remove: () => appStateListeners[event]?.delete(listener) }
+  })
+}
+export const emitAppState = (state: string) => appStateListeners.change?.forEach((listener) => listener(state))
