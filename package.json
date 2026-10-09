@@ -35,13 +35,15 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
+    "./app.plugin.js": "./app.plugin.js",
     "./math": {
       "react-native": "./src/math/index.ts",
       "browser": "./src/math/index.ts",
       "types": "./dist/math/index.d.ts",
       "import": "./dist/math/index.mjs",
       "require": "./dist/math/index.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -57,6 +59,8 @@
   "files": [
     "dist",
     "src",
+    "plugin",
+    "app.plugin.js",
     "!src/__tests__",
     "!src/__mocks__"
   ],
@@ -89,6 +93,7 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-native": "^5.0.0",
+    "expo": "~57.0.26",
     "expo-status-bar": "^57.0.1",
     "expo-system-ui": "^57.0.4",
     "jest": "^30.4.2",
@@ -102,6 +107,7 @@
   },
   "peerDependencies": {
     "@rific/core": ">=0.1.2",
+    "expo": ">=54.0.0",
     "expo-status-bar": ">=57.0.0",
     "expo-system-ui": ">=57.0.0",
     "react": ">=19.0.0",

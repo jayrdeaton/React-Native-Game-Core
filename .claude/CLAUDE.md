@@ -114,6 +114,36 @@ One residual, pre-existing issue this extraction surfaced but doesn't fix: Pong'
 - **Lock `rotation` (relaunch restore, under `freezeWhileLocked`).** `OrientationLockSettings` is `{ locked, rotation?: ViewRotation }`. `OrientationStateProvider` keeps `rotation` equal to the frozen reading via an effect (recorded once a locked reading is resolved, rewritten if `allowedRotations` moves it, cleared to `undefined` on unlock so the next lock records the then-current reading rather than re-adopting a stale one), so `onLockChange` hands the app `{ locked, rotation }` to persist. On the way back in, `lockedRotation` (passed to the source only while frozen) is adopted DURING RENDER via `adjustedState`, so the very first frame is the locked orientation (resolved: true) rather than DEFAULT_STATE portrait; a lock restored without one latches the first confident reading as before and records it. A lock arriving after mount (app settings loading async) relies on `@rific/core` 0.3.0's `initialValue` re-sync, hence the devDependency bump to `^0.3.0` (peer floor left at `>=0.1.2`: the API is unchanged). Why this exists: every fleet game with a Lock Orientation setting froze per call site at mount, so a locked relaunch always froze on DEFAULT_STATE (portrait) before the first sensor commit (~375ms) could land. Tests: `OrientationProvider.lockRotation.test.tsx`.
 - **`allowedRotations` (opt-in allow-list of `ViewRotation`s).** Same terms as `useRotation()` (0 portrait, 180 upside down, 90 = phone turned CCW / top edge left, -90 = CW / top edge right). The sensor listener treats a disallowed candidate exactly like a flat phone (no candidate, pending reset), so the last allowed reading holds, iOS `supportedInterfaceOrientations` style. A disallowed CURRENT reading (portrait default in a landscape-only app, or an angle turned off at runtime) is moved during render to the first allowed entry of `HOLDS` (0, -90, 90, 180), keeping `resolved`. All angle math goes through `getViewRotation` on the `HOLDS` table (never restated), so flipping that function's landscape sign keeps these in useRotation terms automatically. Read through a ref, so inline array literals don't resubscribe. Native only; `portraitWhileKeyboard`'s context override still wins. Tests: `OrientationProvider.allowedRotations.test.tsx`.
 
+## Config plugin: keeping the OS in portrait (2026-10-08)
+
+`app.plugin.js` -> `plugin/withPortraitLock.cjs` (plain CommonJS, Node-only, run by Expo at prebuild;
+`"plugins": ["@tastic/core"]`). It owns every native setting the fake rotation depends on: `orientation:
+'portrait'` (warns if the app set something else), `ios.requireFullScreen: true` plus
+`ios.infoPlist["UISupportedInterfaceOrientations~ipad"]` = Portrait only, and `android:appCategory="game"`
+on `<application>`. Option `drawsRotation` (default true); `false` keeps UpsideDown in the iPad list, for a
+portrait-only app with no fake rotation of its own (Hangman).
+
+Why each one (audit F009 plus its Android twin):
+- Without `requireFullScreen`, Expo's `RequiresFullScreen` plugin FORCES the iPad list to all four orientations
+  whenever `supportsTablet` is on (ITMS-90474), whatever the app or another plugin set. LightCycles'
+  old `withPortraitOnlyIpad` plugin was silently overwritten by exactly that. The plugin sets
+  `config.ios.requireFullScreen` (not a plist mod), because the built-in mod reads that field and writes
+  `UIRequiresFullScreen` from it.
+- Portrait only, not Portrait plus UpsideDown: an iPad's root view controller allows everything the list
+  names, so an upside-down iPad would be flipped by iOS on top of OrientationProvider's 180.
+- Android 16 (targetSdk 36; Expo 57 targets 36) and 17 (API 37) ignore `screenOrientation` on displays
+  >= sw600dp, except for `appCategory="game"`. The temporary opt-out property
+  (`PROPERTY_COMPAT_ALLOW_RESTRICTED_RESIZABILITY`) stops working at API 37, so it isn't used.
+- The iPhone list is left as Expo's portrait default (Portrait plus UpsideDown): an iPhone's default root
+  view controller never allows upside down. expo-screen-orientation's does on a home-button iPhone, built
+  from that list, which is why Pong's unused copy was uninstalled.
+
+Expo resolves `<package>/app.plugin` by FILE PATH through node_modules (`@expo/require-utils`
+`resolveFrom`), so the `exports` map wouldn't block it; `./app.plugin.js` and `./package.json` are
+exported anyway, matching @tastic/edge-guard. `expo` is a devDependency (tests require
+`expo/config-plugins`) and a peer (`>=54.0.0`, as edge-guard). `withPortraitLock.test.ts` (node environment)
+runs the manifest mod through the real `withAndroidManifest` chain, edge-guard's pattern.
+
 ## Code Style
 
 Enforced by ESLint + Prettier, run `npm run lint` before finishing any task.

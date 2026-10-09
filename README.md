@@ -64,6 +64,37 @@ subpath: importing the root barrel loads every app-level module behind it (`expo
 `useThemedRootBackground`'s import-time root background call. `package.json`'s `sideEffects` lists only
 the root entry, so bundlers can still tree-shake the math entry.
 
+## Keeping the OS in portrait: the Expo config plugin
+
+Everything below assumes the OS itself never rotates: this package draws every turn, and an OS
+rotation on top of that shows the app turned twice. Add the package to your app's config plugins and
+it owns the native settings that keep it that way:
+
+```json
+{
+  "expo": {
+    "plugins": ["@tastic/core"]
+  }
+}
+```
+
+- `orientation` is set to `"portrait"` (with a warning if your config asked for anything else).
+- iPad: `ios.requireFullScreen: true` and an iPad orientation list of Portrait only. Without
+  `requireFullScreen`, Expo's prebuild forces the iPad list to all four orientations (iPad multitasking
+  requires them), so this costs Split View, Slide Over and Stage Manager windows. UpsideDown is left out
+  because an iPad allows every orientation in its list, and iOS would flip an upside-down iPad on top of
+  the 180 this package already draws.
+- Android: `android:appCategory="game"` on `<application>`. For apps targeting API 36 or later, Android
+  16 and 17 ignore `screenOrientation` on screens at least 600dp wide (tablets, unfolded foldables),
+  except for apps categorized as games.
+
+A portrait-only app that draws no rotation of its own passes `["@tastic/core", { "drawsRotation": false }]`:
+it gets the same lock, except its iPad list keeps UpsideDown, since iOS's own flip is the only one there.
+
+Don't install `expo-screen-orientation` alongside it: its root view controller re-enables upside down
+on home-button iPhones. Check the resolved settings with `npx expo config --type introspect`. Like any
+config plugin, it only takes effect in a new native build.
+
 ## Orientation tracking
 
 An app permanently locked to portrait at the OS level (no native rotation left to read) can still
@@ -371,6 +402,9 @@ settings context, which is built on its `createSettingsContext`.
 `expo-system-ui` (>=57.0.0) is a real (non-peer-optional) dependency too, needed only by
 `useThemedRootBackground`, imported directly there: every app in this package's own fleet already
 depends on it directly at the same range, so requiring it package-wide adds no new install burden.
+
+`expo` (>=54.0.0) is needed only by the config plugin (`app.plugin.js`, which runs in Node at
+prebuild time and requires `expo/config-plugins`); the runtime code never imports it.
 
 **Deliberately not a dependency: `expo-sensors`.** Orientation tracking needs it, but this package
 never imports it directly — see the injection pattern in the Orientation tracking section above.
