@@ -9,11 +9,11 @@ import { ViewRotation } from './rotation'
 // unlock, and restored from lockInitialValue - see OrientationStateProvider.
 export type OrientationLockSettings = { locked: boolean; rotation?: ViewRotation }
 
-// Unlocked by default — matches every existing app's own GameSettings default for this same
+// Unlocked by default - matches every existing app's own GameSettings default for this same
 // setting today (nothing pins the layout until the player deliberately opts in).
 export const defaultOrientationLockSettings: OrientationLockSettings = { locked: false }
 
-// Thin binding over @rific/core's createSettingsContext factory — this file used to hand-roll its
+// Thin binding over @rific/core's createSettingsContext factory - this file used to hand-roll its
 // own {Context, Provider}, the exact ~30-line shape that factory was built to generalize away (see
 // its own doc comment, which names this file specifically as one of the duplicates it replaces).
 // Never actually migrated when the factory landed; a later fleet-wide audit caught the gap. The

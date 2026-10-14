@@ -24,19 +24,19 @@ describe('getViewRotation', () => {
       Platform.OS = originalOS
     })
 
-    it("never applies sideBySide's own compensating rotation — a browser window has no OS-level portrait lock to compensate for, regardless of p1OnRight", () => {
+    it("never applies sideBySide's own compensating rotation - a browser window has no OS-level portrait lock to compensate for, regardless of p1OnRight", () => {
       Platform.OS = 'web'
       expect(getViewRotation('sideBySide', true, false)).toBe(0)
       expect(getViewRotation('sideBySide', false, false)).toBe(0)
     })
 
-    it('still falls through to the upsideDown flip on web — moot in practice since the web fallback never reports upsideDown true, but the function itself has no reason to special-case it away', () => {
+    it('still falls through to the upsideDown flip on web - moot in practice since the web fallback never reports upsideDown true, but the function itself has no reason to special-case it away', () => {
       Platform.OS = 'web'
       expect(getViewRotation('sideBySide', true, true)).toBe(180)
       expect(getViewRotation('sideBySide', false, true)).toBe(180)
     })
 
-    it('still applies faceToFace as normal — unaffected by the sideBySide exclusion', () => {
+    it('still applies faceToFace as normal - unaffected by the sideBySide exclusion', () => {
       Platform.OS = 'web'
       expect(getViewRotation('faceToFace', true, false)).toBe(0)
       expect(getViewRotation('faceToFace', true, true)).toBe(180)
@@ -59,12 +59,12 @@ describe('getFixedZoneRotation', () => {
 })
 
 describe('getOpposingZoneRotation', () => {
-  it('leaves landscape rotations unchanged — both seats face the same way', () => {
+  it('leaves landscape rotations unchanged - both seats face the same way', () => {
     expect(getOpposingZoneRotation(90)).toBe(90)
     expect(getOpposingZoneRotation(-90)).toBe(-90)
   })
 
-  it('flips between the two portrait angles — seats face across the device from each other', () => {
+  it('flips between the two portrait angles - seats face across the device from each other', () => {
     expect(getOpposingZoneRotation(0)).toBe(180)
     expect(getOpposingZoneRotation(180)).toBe(0)
   })
@@ -87,7 +87,7 @@ describe('rotateDimensions', () => {
     expect(rotateDimensions(402, 874, 0)).toEqual({ width: 402, height: 874 })
   })
 
-  it('is the identity at 180° — the footprint is unchanged, only the content flips in place', () => {
+  it('is the identity at 180° - the footprint is unchanged, only the content flips in place', () => {
     expect(rotateDimensions(402, 874, 180)).toEqual({ width: 402, height: 874 })
   })
 

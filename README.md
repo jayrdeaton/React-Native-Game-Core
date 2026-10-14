@@ -1,39 +1,39 @@
 # @tastic/core
 
 Required foundation for `@tastic/*` game packages. Every other `@tastic/*` package (present and
-future — `@tastic/physics`, `@tastic/input`, and so on) can assume this is available and depends on
+future - `@tastic/physics`, `@tastic/input`, and so on) can assume this is available and depends on
 it directly, so anything genuinely domain-agnostic lives here rather than being duplicated in
 whichever package happens to need it first.
 
 ## What it does
 
-- **`Vec2`** — a `{x, y}` type plus `add`/`subtract`/`scale`/`length`/`distance`/`dot`/`normalize`.
+- **`Vec2`**: a `{x, y}` type plus `add`/`subtract`/`scale`/`length`/`distance`/`dot`/`normalize`.
   Used by collision/force math, drag/aim-vector tracking, and board/layout geometry alike, so it
   doesn't belong to any one of those.
-- **`clamp(value, min, max)`** — keep a number within a range.
-- **`computeClampedDt(timestamp, lastTimestamp, maxDt)`** — turns the raw gap between two
+- **`clamp(value, min, max)`**: keep a number within a range.
+- **`computeClampedDt(timestamp, lastTimestamp, maxDt)`**: turns the raw gap between two
   `requestAnimationFrame` timestamps into a frame-rate-independent, clamped `dt` multiplier, so a
   single simulation/tick step never represents more time than `maxDt` nominal frames even after a
   stutter or a background/foreground cycle.
-- **`useGameLoop(onTick, { enabled, maxDt })`** — drives `onTick(dt)` once per frame via
+- **`useGameLoop(onTick, { enabled, maxDt })`**: drives `onTick(dt)` once per frame via
   `requestAnimationFrame` for as long as `enabled` is true, using `computeClampedDt` internally.
-  Game-specific gating (pause state, game phase) stays out of the hook — compute your own `enabled`
+  Game-specific gating (pause state, game phase) stays out of the hook - compute your own `enabled`
   boolean and pass it in.
-- **`useIsTouchPrimaryDevice()`** — best-effort environment-capability detection: is this player
+- **`useIsTouchPrimaryDevice()`**: best-effort environment-capability detection: is this player
   likely on touch (native, or a touch-primary web viewport) vs. likely to have a keyboard/mouse (a
   wide-viewport web browser with a fine pointer)? Useful for deciding whether to offer a
   keyboard-scheme picker or lean on touch/swipe controls. Always `true` on native.
 - **`useBackgroundPause(shouldPause)`** - latches a pause when the app leaves the foreground mid-match
   and holds it until the player taps Resume. See its own section below.
-- **Orientation tracking** — `OrientationProvider`, `useOrientationState`, `useRotation`,
+- **Orientation tracking**: `OrientationProvider`, `useOrientationState`, `useRotation`,
   `useOrientationLock`, `FakeLandscapeView`, `useRotatedWindowDimensions`, and the pure
   `getViewRotation`/`getFixedZoneRotation`/`getOpposingZoneRotation`/`rotateInsets`/
-  `rotateDimensions` geometry helpers. See its own section below —
+  `rotateDimensions` geometry helpers. See its own section below -
   [`@tastic/split-screen`](https://github.com/jayrdeaton/react-native-split-screen) is built on top
   of this for its two-player zone layout, and [`@tastic/hud`](https://github.com/jayrdeaton/react-native-hud)'s
   popovers/dialogs read `useRotation()` directly to stay legible inside a rotated zone.
-- **`useThemedRootBackground(dark, gestureEnabled?)`** — fixes an OS-level corner-flash during
-  react-native-screens push/pop transitions (the root window's own background — white by default —
+- **`useThemedRootBackground(dark, gestureEnabled?)`**: fixes an OS-level corner-flash during
+  react-native-screens push/pop transitions (the root window's own background - white by default -
   showing through at the display's rounded corners while a transition is mid-flight) by syncing that
   root window's background to the live theme via `expo-system-ui`, and returning the matching screen
   options for a root `<Stack>`. See its own section below.
@@ -98,15 +98,15 @@ config plugin, it only takes effect in a new native build.
 ## Orientation tracking
 
 An app permanently locked to portrait at the OS level (no native rotation left to read) can still
-fake it by reading the device's own physical tilt directly — this is the shared foundation both
+fake it by reading the device's own physical tilt directly - this is the shared foundation both
 [`@tastic/split-screen`](https://github.com/jayrdeaton/react-native-split-screen) (two-player zone
 layout) and [`@tastic/hud`](https://github.com/jayrdeaton/react-native-hud) (popovers/dialogs that
 need to rotate in place inside one) build on.
 
-Mount `OrientationProvider` once, near your app's root — above every screen that reads orientation,
+Mount `OrientationProvider` once, near your app's root - above every screen that reads orientation,
 so the committed reading survives navigation instead of each screen restarting its own sensor
 subscription from scratch. This package never imports `expo-sensors` itself (a real top-level
-import would force every consumer — even one with zero interest in tilt tracking — to have it
+import would force every consumer - even one with zero interest in tilt tracking - to have it
 installed, or their bundler would fail to resolve it): your app does its own real
 `import { DeviceMotion } from 'expo-sensors'` and hands the resolved module in as a prop.
 
@@ -120,9 +120,9 @@ import { DeviceMotion } from 'expo-sensors'
 </OrientationProvider>
 ```
 
-Omitting `deviceMotion` degrades gracefully — every hook below still works, it just never resolves
+Omitting `deviceMotion` degrades gracefully - every hook below still works, it just never resolves
 past its unresolved default (logged once in dev via `console.warn`, so it's easy to notice if it's
-accidental) — the same "nothing crashes, it just never resolves" failure mode a missing
+accidental) - the same "nothing crashes, it just never resolves" failure mode a missing
 `SafeAreaProvider` has. An app with no rotation feature at all can skip mounting the Provider
 entirely; every consumer (including `@tastic/hud`'s components) reads an inert default in that case.
 
@@ -143,7 +143,7 @@ function TitleScreen() {
 }
 ```
 
-`useOrientationLock()` is a small, separate "is rotation locked" setting — `{ locked, setLocked }`
+`useOrientationLock()` is a small, separate "is rotation locked" setting - `{ locked, setLocked }`
 over a patch-based context, mirroring `@rific/feedback-press`'s `useSoundSettings`/`useHapticSettings`
 shape. Like the rest of this package, it holds live state only; your app decides where (or whether)
 that setting is persisted, via `OrientationProvider`'s own `lockInitialValue`/`onLockChange` props.
@@ -160,8 +160,8 @@ flag flips (or at its own mount), and every call site must be handed the same fl
 <OrientationProvider deviceMotion={DeviceMotion} lockInitialValue={{ locked, rotation }} onLockChange={save} freezeWhileLocked>
 ```
 
-Every consumer then sees the reading that was current when the user locked — including a component that
-mounts *after* the lock — with no per-call `locked` plumbing (the per-call argument still works, but
+Every consumer then sees the reading that was current when the user locked - including a component that
+mounts *after* the lock - with no per-call `locked` plumbing (the per-call argument still works, but
 see the relaunch note below). Unlocking resumes through the normal hold-steady debounce (a tilt held
 during the lock does not commit the instant you unlock). It is opt-in because it changes semantics:
 locking freezes *every* consumer of the shared reading, so an app that wants a screen's lock to be
@@ -204,8 +204,8 @@ Native only, like `freezeWhileLocked`.
 
 ### Whole-screen content: `FakeLandscapeView` / `useRotatedWindowDimensions`
 
-For single-perspective, whole-screen content (a title screen, a settings dialog, or — with care, see
-its own warning below — an entire game screen), wrap it in `FakeLandscapeView` instead of hand-rolling
+For single-perspective, whole-screen content (a title screen, a settings dialog, or - with care, see
+its own warning below - an entire game screen), wrap it in `FakeLandscapeView` instead of hand-rolling
 the rotation yourself:
 
 ```tsx
@@ -222,12 +222,12 @@ function TitleScreen() {
 
 It swaps width/height for a genuine 90°/-90° hold (the standard "fake landscape inside a
 portrait-locked app" trick) and does a plain in-place rotate for 180°, reading the same ambient
-`useOrientationState()` every other hook here does (all three orientation props — plus `locked` — can
+`useOrientationState()` every other hook here does (all three orientation props - plus `locked` - can
 be passed explicitly instead, for a caller whose own reading needs to differ from the live one, e.g.
 a fading dual-zone layout mid-transition).
 
 The rendered tree is identical at every angle (outer `View` > inner `View` > children; only styles change),
-so rotating never unmounts/remounts `children` — their state survives a rotation. At `0°`/`180°` your
+so rotating never unmounts/remounts `children` - their state survives a rotation. At `0°`/`180°` your
 `style` is split so layout matches a single `<View style>`: the outer view takes everything that positions
 or sizes it in its parent (`position`/insets, `flex*`, `width`/`height`/min/max, `aspectRatio`, `alignSelf`,
 margins, `zIndex`, `display`, `transform`), and the inner container that lays out `children` takes the rest
@@ -241,13 +241,13 @@ one already inside a turned frame). `passThrough` makes the inner view `box-none
 so touches fall through the frame's own boxes to whatever is beneath it and only `children` claim them: use it
 for a frame laid over other content, such as a dialog layer or a root-level overlay.
 
-**Safe for tap-driven content** — React Native's own touch responder system hit-tests against the
+**Safe for tap-driven content** - React Native's own touch responder system hit-tests against the
 rendered/transformed layout correctly. **NOT safe for continuous gesture tracking**
-(react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) —
+(react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) -
 never wrap a game board/touch layer in this without independently verifying your own gesture code
 agrees with it under rotation.
 
-`useRotatedWindowDimensions(locked?)` is the dimensions analog of `rotateInsets` above — for a
+`useRotatedWindowDimensions(locked?)` is the dimensions analog of `rotateInsets` above - for a
 caller rendering *inside* a `FakeLandscapeView`-style ancestor that needs its own width/height budget
 (a card-layout column count, a tableau height cap) to reflect the post-rotation footprint that
 ancestor actually presents, since plain `useWindowDimensions()` never changes under a fake rotation
@@ -263,12 +263,12 @@ function GameBoard() {
 ```
 
 `rotateDimensions(width, height, rotation)` is the pure function underneath both `FakeLandscapeView`
-and `useRotatedWindowDimensions` — swaps width/height for `±90°`, passes `0°`/`180°` through
-unchanged — exposed directly for a caller doing its own composition.
+and `useRotatedWindowDimensions` - swaps width/height for `±90°`, passes `0°`/`180°` through
+unchanged - exposed directly for a caller doing its own composition.
 
 ### Root layout & orientation: `RotationAwareStatusBar`
 
-The OS status bar is physically glued to the device's top edge and can't itself rotate to match —
+The OS status bar is physically glued to the device's top edge and can't itself rotate to match -
 so the moment `FakeLandscapeView`/`getViewRotation` have spun anything else on screen into
 `sideBySide` (±90°) or upside-down `faceToFace` (180°), a status bar left showing renders sideways or
 upside-down against content that's otherwise correctly compensated. `RotationAwareStatusBar` hides
@@ -283,24 +283,24 @@ import { RotationAwareStatusBar } from '@tastic/core'
 <RotationAwareStatusBar />
 ```
 
-**`locked` must be threaded through from your app's own "Lock Orientation" setting — the same value
+**`locked` must be threaded through from your app's own "Lock Orientation" setting - the same value
 you already pass to `useOrientationState`/`useRotation` elsewhere.** It's optional in the type
 (`locked?: boolean`, defaulting to `false`) only so a bare `<RotationAwareStatusBar />` matches what a
 bare `useOrientationState()` call would do; it is not optional in practice for any app that has a
-lock-orientation setting at all. Omitting it silently falls back to "always track live tilt" — so the
+lock-orientation setting at all. Omitting it silently falls back to "always track live tilt" - so the
 moment a player locks orientation and keeps tilting the device, this bar keeps hiding/showing itself
 off the live tilt reading while the rest of the screen has correctly frozen, and the two visibly
 diverge. This was a real bug in 4 of the 5 apps that hand-rolled this component before it was
-extracted here; only one had it right — the whole reason it's a package component now instead of
+extracted here; only one had it right - the whole reason it's a package component now instead of
 another hand-rolled copy is to make that divergence impossible to reintroduce.
 
 Optional `style` (`'auto' | 'inverted' | 'light' | 'dark'`), `animated` and `hideTransitionAnimation`
-props pass straight through to `expo-status-bar`'s `StatusBar` — e.g. `style='light'` for a surface that is
+props pass straight through to `expo-status-bar`'s `StatusBar` - e.g. `style='light'` for a surface that is
 always dark. Omitted, they leave expo-status-bar's own defaults untouched. `hidden` stays
 `rotation !== 0` and is not overridable.
 
 Render your wrapper (`AppRotationAwareStatusBar` above, or whatever you call it) *inside* whatever
-provider tree actually holds the `lockOrientation` value it reads — your settings/Redux provider —
+provider tree actually holds the `lockOrientation` value it reads - your settings/Redux provider -
 not in a root layout component that itself renders that provider. Put it outside that tree and the
 hook backing `settings.lockOrientation` runs without the context it needs, which either crashes or
 silently reads stale/default data depending on how that hook is written.
@@ -311,7 +311,7 @@ react-native-screens' push/pop transition animates two screens' native views dir
 root window, so whatever that window's own background is left at (white, by default) shows through
 at the display's rounded corners for the duration of the transition, wherever the sliding content
 hasn't caught up to the corner-radius mask yet. `contentStyle` (the screen-level backing) is a
-separate layer from the root window itself and doesn't fix this alone — both are needed together,
+separate layer from the root window itself and doesn't fix this alone - both are needed together,
 matching every fleet app (AirHockey, BoxHockey, Pong, LightCycles, Snake) that had already
 independently hand-rolled this exact pairing byte-for-byte before it was extracted here.
 
@@ -334,22 +334,22 @@ export default function RootLayout() {
 ```
 
 It's a hook, not a wrapping component, unlike `RotationAwareStatusBar` above (this package's existing
-precedent for a root-`_layout.tsx` helper) — some fleet apps' root `<Stack>` renders explicit
+precedent for a root-`_layout.tsx` helper) - some fleet apps' root `<Stack>` renders explicit
 `<Stack.Screen>` children, and a hook returning a plain options object composes with both that shape
 and a bare `<Stack screenOptions={...} />` for free, where a wrapping component would need its own
 `children` passthrough prop for the first shape alone.
 
 `gestureEnabled` (default `false`) is a parameter, never hardcoded inside the hook, because disabling
-it addresses a logically separate concern from the corner-flash fix — iOS's native swipe-back gesture
-fighting an in-game swipe/Pan gesture on a specific screen — that won't apply to every future
+it addresses a logically separate concern from the corner-flash fix - iOS's native swipe-back gesture
+fighting an in-game swipe/Pan gesture on a specific screen - that won't apply to every future
 consumer. Every current fleet app happens to want `false` today; document your own reason for the
 value you pass at your own call site.
 
-This is `@tastic/core`'s first module-scope side effect — a real call that fires the instant the
+This is `@tastic/core`'s first module-scope side effect - a real call that fires the instant the
 module is evaluated, not gated behind any function call. It's harmless in practice because `tsup`
 bundles the whole package into a single `dist/index.js`/`dist/index.mjs` per format, so there's no
 per-file boundary for a downstream bundler to exploit by dropping just this call while keeping the
-hook itself — but it's worth knowing about if you're auditing why a package declaring
+hook itself - but it's worth knowing about if you're auditing why a package declaring
 `"sideEffects": false` still has one.
 
 ## Pausing when the app backgrounds: `useBackgroundPause`
@@ -391,7 +391,7 @@ npm install @tastic/core
 
 ## Peer dependencies
 
-`react` (>=19.0.0) and `react-native` (>=0.76.0) — required for the whole package. `Vec2` and `clamp` are
+`react` (>=19.0.0) and `react-native` (>=0.76.0) - required for the whole package. `Vec2` and `clamp` are
 also available from the dependency-free `@tastic/core/math` entry (see Usage), which loads without
 any of the peers below; the root entry needs all of them. This is a React
 Native toolkit either way, so every real consumer already has both installed regardless.
@@ -407,7 +407,7 @@ depends on it directly at the same range, so requiring it package-wide adds no n
 prebuild time and requires `expo/config-plugins`); the runtime code never imports it.
 
 **Deliberately not a dependency: `expo-sensors`.** Orientation tracking needs it, but this package
-never imports it directly — see the injection pattern in the Orientation tracking section above.
+never imports it directly - see the injection pattern in the Orientation tracking section above.
 This keeps `expo-sensors` from being forced onto a consumer that only wants `clamp`/`useGameLoop`/
 etc. and has no interest in tilt tracking at all.
 

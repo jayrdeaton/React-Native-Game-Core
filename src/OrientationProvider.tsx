@@ -7,15 +7,15 @@ import { DeviceMotionModule, OrientationStateProvider } from './useOrientationSt
 export type OrientationProviderProps = {
   children: ReactNode
   // The app's own real `import { DeviceMotion } from 'expo-sensors'`, handed in rather than
-  // imported by this package directly — see useOrientationState.tsx's own DeviceMotionModule doc
+  // imported by this package directly - see useOrientationState.tsx's own DeviceMotionModule doc
   // for why: a real top-level import here would force every consumer of this package (not just
   // ones that want live tilt tracking) to have expo-sensors installed, or their bundler fails to
   // resolve it. Mirrors @rific/auto-paper's identical `<Provider reanimated={...}>`/`<Provider
   // expoBlur={...}>` injection convention. Omit entirely for an app with no interest in live
-  // orientation tracking (or a build that doesn't want the dependency at all) — every hook still
+  // orientation tracking (or a build that doesn't want the dependency at all) - every hook still
   // works, it just never resolves past its unresolved default (see useOrientationState.tsx).
   deviceMotion?: DeviceMotionModule
-  // Rehydrates the lock setting from the consuming app's own storage at mount time — this Provider
+  // Rehydrates the lock setting from the consuming app's own storage at mount time - this Provider
   // deliberately does no persistence of its own, matching @rific/feedback-press's
   // FeedbackPressProvider's identical initialValue/onChange contract (the shared package holds live
   // state; the app decides where/whether that state is saved). Under `freezeWhileLocked`, include the
@@ -23,21 +23,21 @@ export type OrientationProviderProps = {
   // very first frame (not portrait, and not whichever way the phone happens to be held at launch).
   lockInitialValue?: Partial<OrientationLockSettings>
   // Fires with the full settings object whenever the lock setting changes via useOrientationLock()'s
-  // setLocked — the app's own hook into persisting it, analogous to onChange/onSoundChange. Under
+  // setLocked - the app's own hook into persisting it, analogous to onChange/onSoundChange. Under
   // `freezeWhileLocked` it also fires when the locked `rotation` is recorded or cleared (see
-  // OrientationLockSettings) — persist that alongside `locked` and hand both back via lockInitialValue.
+  // OrientationLockSettings) - persist that alongside `locked` and hand both back via lockInitialValue.
   onLockChange?: (settings: OrientationLockSettings) => void
   // Opt-in (default false). When true, the shared orientation reading itself freezes while
-  // useOrientationLock().locked is true: every consumer — useOrientationState/useRotation/
+  // useOrientationLock().locked is true: every consumer - useOrientationState/useRotation/
   // FakeLandscapeView/RotationAwareStatusBar/getOrientationSnapshot, with or without their own
-  // per-call `locked` argument — sees the reading that was current when the user locked, including a
+  // per-call `locked` argument - sees the reading that was current when the user locked, including a
   // component that mounts AFTER the lock (which with per-call-site locking would snapshot the live
   // reading at its own mount instead). Nothing needs to be handed the flag by hand. Unlocking resumes
   // tracking through the normal hold-steady debounce (a tilt held during the lock does not commit the
   // instant you unlock). If the lock is already on at launch (lockInitialValue) and no confident
   // reading exists yet, the first one to arrive is latched rather than pinning the unresolved default.
   // Off by default because it changes semantics: with it on, locking here freezes EVERY consumer of
-  // the shared reading — including a screen that would prefer its own independent lock (see
+  // the shared reading - including a screen that would prefer its own independent lock (see
   // useOrientationState's doc). Leave it off to keep the per-call-site behavior exactly as before.
   // Native only: web derives its reading from window size and is not frozen.
   // Also what makes a lock survive a relaunch: while frozen, the lock setting carries the frozen
@@ -69,14 +69,14 @@ export type OrientationProviderProps = {
 }
 
 // The one thing an app mounts, once, near its own root (above every screen that calls
-// useOrientationState/useRotation/useOrientationLock) — composes the live device-tilt reading
+// useOrientationState/useRotation/useOrientationLock) - composes the live device-tilt reading
 // (OrientationStateProvider, see useOrientationState.tsx) with the lock-setting context above it.
 // Without this mounted, every hook in this file's sibling modules still works but degrades to its
-// own inert default (unresolved/unlocked, never updates) rather than throwing — the same "missing
+// own inert default (unresolved/unlocked, never updates) rather than throwing - the same "missing
 // SafeAreaProvider" failure mode useOrientationState's own doc describes.
 //
 // The lock-setting half is just OrientationLockProvider (@rific/core's createSettingsContext,
-// bound in OrientationLockContext.ts) — lockInitialValue/onLockChange are that factory's own
+// bound in OrientationLockContext.ts) - lockInitialValue/onLockChange are that factory's own
 // initialValue/onChange props, forwarded through unchanged (same names this file's own hand-rolled
 // version already used, so no consuming app's own props needed to change).
 export function OrientationProvider({ children, deviceMotion, lockInitialValue, onLockChange, freezeWhileLocked, portraitWhileKeyboard, allowedRotations }: OrientationProviderProps) {

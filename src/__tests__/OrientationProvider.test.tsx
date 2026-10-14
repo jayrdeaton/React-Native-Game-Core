@@ -16,7 +16,7 @@ describe('OrientationProvider', () => {
     expect(result.current.locked).toBe(false)
   })
 
-  it("fires onLockChange with the full settings object on every change, matching onChange/onSoundChange's contract — the app owns persistence, this Provider does not", () => {
+  it("fires onLockChange with the full settings object on every change, matching onChange/onSoundChange's contract - the app owns persistence, this Provider does not", () => {
     const onLockChange = jest.fn()
     const wrapper = ({ children }: { children: ReactNode }) => <OrientationProvider onLockChange={onLockChange}>{children}</OrientationProvider>
     const { result } = renderHook(() => useOrientationLock(), { wrapper })

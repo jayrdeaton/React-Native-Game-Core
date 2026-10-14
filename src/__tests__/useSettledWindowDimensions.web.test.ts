@@ -33,7 +33,7 @@ describe('useSettledWindowDimensions (web)', () => {
     const { result } = renderHook(() => useSettledWindowDimensions())
     expect(result.current.width).toBe(0)
 
-    // Simulates hydration landing after the real layout has already resolved to its final size —
+    // Simulates hydration landing after the real layout has already resolved to its final size -
     // exactly the race this hook exists to catch, with no 'resize' event ever firing to signal it.
     setViewport(1280, 720)
     await waitTwoFrames()

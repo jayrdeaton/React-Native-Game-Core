@@ -1,6 +1,6 @@
 import { useOrientationLockSettings } from './OrientationLockContext'
 
-// Thin, single-purpose read/write pair over the shared "lock orientation" setting — mirrors
+// Thin, single-purpose read/write pair over the shared "lock orientation" setting - mirrors
 // @rific/feedback-press's useSoundSettings/useHapticSettings shape exactly (a {value, setValue}-style
 // pair over a patch-based context, not the raw {settings, set} contract itself, which stays an
 // implementation detail of OrientationProvider).

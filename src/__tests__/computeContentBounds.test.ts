@@ -21,7 +21,7 @@ describe('computeContentBounds', () => {
     expect(computeContentBounds(-100, 1040)).toEqual({ contentWidth: 0, gutterWidth: 0 })
   })
 
-  it('disables clamping entirely when maxContentWidth is Infinity — the built-in escape hatch', () => {
+  it('disables clamping entirely when maxContentWidth is Infinity - the built-in escape hatch', () => {
     expect(computeContentBounds(2000, Infinity)).toEqual({ contentWidth: 2000, gutterWidth: 0 })
   })
 })

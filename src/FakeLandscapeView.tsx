@@ -6,17 +6,17 @@ import { getViewRotation, rotateDimensions, toRotationStyle, ViewRotation } from
 import { useOrientationState } from './useOrientationState'
 
 export interface FakeLandscapeViewProps {
-  // All three default to a live ambient read (via useOrientationState) when omitted — a simple
+  // All three default to a live ambient read (via useOrientationState) when omitted - a simple
   // screen that just wants "however the phone is actually being held, right now" can render
   // <FakeLandscapeView> with none of these and get correct, live-updating behavior for free.
-  // Pass them explicitly only when a caller's own reading needs to differ from the ambient one —
+  // Pass them explicitly only when a caller's own reading needs to differ from the ambient one -
   // e.g. a fading dual-zone layout whose panel content deliberately lags the live reading behind a
   // transition, where the ambient default would be momentarily wrong mid-fade.
   orientationMode?: OrientationMode
   p1OnRight?: boolean
   upsideDown?: boolean
   // Only consulted when the ambient default is actually being used (i.e. when orientationMode/
-  // p1OnRight/upsideDown are all omitted) — matches useOrientationState's own `locked` param.
+  // p1OnRight/upsideDown are all omitted) - matches useOrientationState's own `locked` param.
   locked?: boolean
   // An explicit angle that wins over orientationMode/p1OnRight/upsideDown/locked, for a caller that
   // already has the exact rotation it wants (a dialog handed its caller's live rotation, or 0 for
@@ -32,20 +32,20 @@ export interface FakeLandscapeViewProps {
 }
 
 // Wraps `children` in whatever rotation keeps it gravity-upright for however the device is
-// currently being held — see getViewRotation for the angle itself, and its own comment for why this
+// currently being held - see getViewRotation for the angle itself, and its own comment for why this
 // is needed at all now that the app is portrait-locked at the OS level.
 //
 // A 90°/-90° rotation swaps the content's effective footprint (what was width becomes height), so
-// those two cases size/center the inner container explicitly for the swap — the standard "fake
-// landscape inside a portrait-locked app" trick — rather than just rotating in place, which would
+// those two cases size/center the inner container explicitly for the swap - the standard "fake
+// landscape inside a portrait-locked app" trick - rather than just rotating in place, which would
 // clip against the real (unswapped, portrait-shaped) window. 180° doesn't change the footprint at
 // all, so it just applies a plain rotate to the same inner container.
 //
-// The element tree is IDENTICAL at every angle — always outer View > inner View > children — and only
+// The element tree is IDENTICAL at every angle - always outer View > inner View > children - and only
 // the styles differ. This is load-bearing, not tidiness: React reconciles by position and type, so a
 // per-angle tree (a bare <View> at 0°, a wrapped one at ±90°) unmounts and remounts the whole
 // `children` subtree every time the device is rotated between them, wiping every descendant's state
-// (undo history, animation state, scroll positions) and costing a full mount's worth of JS — measured
+// (undo history, animation state, scroll positions) and costing a full mount's worth of JS - measured
 // at ~700-800ms per rotation for a whole game screen, versus ~90-250ms for a plain update. Never
 // reintroduce a per-angle branch in the returned tree; branch on the style values only.
 //
@@ -54,26 +54,26 @@ export interface FakeLandscapeViewProps {
 // positions/sizes the view inside ITS PARENT (OUTER_STYLE_KEYS: position/insets, zIndex, flex*,
 // width/height/min/max, aspectRatio, alignSelf, margins, display, transform), so an absolute overlay
 // stays out of flow and a content-sized/row parent sees the same box as before. The INNER view is the
-// container `children` are laid out in — every remaining key (alignItems, justifyContent,
+// container `children` are laid out in - every remaining key (alignItems, justifyContent,
 // flexDirection, gap, padding, borders, backgroundColor, overflow, opacity, pointerEvents, ...) plus
 // flexGrow:1/flexShrink:1/flexBasis:auto so it fills the outer box (or sizes to content when the outer
-// is content-sized) — and carries the 180° rotate about its own centre, which equals the outer's
+// is content-sized) - and carries the 180° rotate about its own centre, which equals the outer's
 // centre. `direction` is copied to both (it is inherited layout state). At ±90° the outer is an
 // absoluteFill box-none and the inner is the caller's style plus the explicit swapped size/position and
-// rotate — identical to the original implementation. Known limit: boxSizing:'content-box' combined with
+// rotate - identical to the original implementation. Known limit: boxSizing:'content-box' combined with
 // an explicit width/height would size the outer without the inner's padding/border.
 //
-// Safe for tap-driven content — React Native's own touch responder system hit-tests against the
+// Safe for tap-driven content - React Native's own touch responder system hit-tests against the
 // rendered/transformed layout correctly. NOT safe for continuous gesture tracking
-// (react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) —
+// (react-native-gesture-handler's translation deltas read raw, untransformed native coordinates) -
 // never wrap the game board/touch layer in this.
 export function FakeLandscapeView({ orientationMode, p1OnRight, upsideDown, locked = false, rotation: rotationOverride, passThrough = false, style, children }: FakeLandscapeViewProps) {
   const { width, height } = useWindowDimensions()
-  // Always subscribed, even when every field below ends up overridden by an explicit prop — the
+  // Always subscribed, even when every field below ends up overridden by an explicit prop - the
   // ambient reading has to stay live for the zero-prop case to actually update as the phone moves,
   // and a caller supplying its own full triple (e.g. loadout's fade-lagged panelLayout) is already
   // subscribed to the same live source one level up for its own reasons, so this doesn't introduce
-  // a new re-render trigger in practice — just some discarded work within a render already happening.
+  // a new re-render trigger in practice - just some discarded work within a render already happening.
   const ambient = useOrientationState(locked)
   const resolvedOrientationMode = orientationMode ?? ambient.orientationMode
   const resolvedP1OnRight = p1OnRight ?? ambient.p1OnRight

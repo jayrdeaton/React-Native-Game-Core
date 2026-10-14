@@ -5,7 +5,7 @@ import { ReactNode } from 'react'
 import { RotationAwareStatusBar } from '../RotationAwareStatusBar'
 import { DeviceMotionMeasurement, DeviceMotionModule, OrientationStateProvider } from '../useOrientationState'
 
-// Same local test double as useRotation.test.tsx/FakeLandscapeView.test.tsx — production code never
+// Same local test double as useRotation.test.tsx/FakeLandscapeView.test.tsx - production code never
 // imports expo-sensors directly, so there's nothing to moduleNameMapper-mock here.
 function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity: { x: number; y: number } | null) => void } {
   let listener: ((measurement: DeviceMotionMeasurement) => void) | null = null

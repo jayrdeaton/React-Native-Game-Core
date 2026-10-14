@@ -1,11 +1,11 @@
 import * as SystemUI from 'expo-system-ui'
 import { useEffect } from 'react'
 
-// Runs once, at module import — before any component (or the live theme) has rendered, exactly like
+// Runs once, at module import - before any component (or the live theme) has rendered, exactly like
 // each app's own former per-file call. '#000000' is just the earliest possible guess; the hook's own
 // effect below corrects it to the real theme the moment a consumer first calls the hook with a known
 // `dark`, well before a user could navigate and trigger a react-native-screens push/pop transition
-// (the OS-level corner-flash this exists to prevent — see the hook's own doc).
+// (the OS-level corner-flash this exists to prevent - see the hook's own doc).
 SystemUI.setBackgroundColorAsync('#000000')
 
 export interface ThemedRootStackOptions {
@@ -20,7 +20,7 @@ export interface ThemedRootStackOptions {
  * screens' native views directly over the OS root window, so whatever that window's own background
  * is left at (white, by default) shows through at the display's rounded corners for the duration of
  * the transition, wherever the sliding content hasn't caught up to the corner-radius mask yet.
- * contentStyle alone (the screen-level backing) doesn't fix this — it's a separate layer from the
+ * contentStyle alone (the screen-level backing) doesn't fix this - it's a separate layer from the
  * root window SystemUI controls, which is why both are needed together, matching every app in the
  * fleet that already independently hand-rolled this exact pairing.
  *

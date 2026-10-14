@@ -4,18 +4,18 @@ import { getViewRotation } from './rotation'
 import { useOrientationState } from './useOrientationState'
 
 export interface RotationAwareStatusBarProps {
-  // Defaults to false — matches useOrientationState's own default when called with no argument, so
+  // Defaults to false - matches useOrientationState's own default when called with no argument, so
   // a bare <RotationAwareStatusBar /> tracks live tilt exactly like a bare useOrientationState()
   // call would. Pass the same value a screen's own useOrientationState(lockOrientation) call uses
   // (e.g. a Redux/context-backed "Lock Orientation" setting) so this bar's hidden/shown state can
-  // never diverge from whatever rotation that screen's own content is actually committed to —
+  // never diverge from whatever rotation that screen's own content is actually committed to -
   // passing nothing here would keep tracking live tilt unconditionally even while the content
   // beside it has frozen, which is exactly the divergence a locked screen exists to prevent.
   locked?: boolean
   // Passthroughs to expo-status-bar's own props of the same name, for an app whose surface never
   // follows the OS color scheme (e.g. a dark game table that always wants 'light' text). Omitted =
   // expo-status-bar's own default (style 'auto', no animation, 'fade' hide transition), i.e. exactly
-  // what this component rendered before these existed. `hidden` is deliberately NOT passable — it is
+  // what this component rendered before these existed. `hidden` is deliberately NOT passable - it is
   // this component's whole job (`rotation !== 0`).
   style?: StatusBarProps['style']
   animated?: StatusBarProps['animated']
@@ -25,13 +25,13 @@ export interface RotationAwareStatusBarProps {
 // Hides the real OS status bar whenever this package's own rotation system (getViewRotation, as
 // consumed directly here and by FakeLandscapeView) has visually rotated content elsewhere on
 // screen. The OS status bar is physically glued to the device's top edge and can't itself rotate to
-// match — so the moment anything is spun into sideBySide (±90°) or upside-down faceToFace (180°),
+// match - so the moment anything is spun into sideBySide (±90°) or upside-down faceToFace (180°),
 // a status bar left showing renders sideways or upside-down against content that's otherwise
 // correctly compensated, which reads as broken rather than merely unrotated. Unrotated (0°) is the
 // only state where showing it is actually correct, so `hidden` is just `rotation !== 0`.
 //
 // All 5 apps in this package's fleet (AirHockey, BoxHockey, LightCycles, Pong, Snake) independently
-// hand-rolled this exact ~10-line component in their own root _layout.tsx before it moved here —
+// hand-rolled this exact ~10-line component in their own root _layout.tsx before it moved here -
 // same "identical file duplicated per-app until extracted" story as FakeLandscapeView's own history
 // note. BoxHockey's version was the reference shape the other 4 were brought in line with first
 // (threading a `locked` value through their own useOrientationState call the same way BoxHockey
@@ -39,7 +39,7 @@ export interface RotationAwareStatusBarProps {
 // up its own thin wrapper.
 //
 // Reads orientation via useOrientationState directly, unlike FakeLandscapeView's optional
-// orientationMode/p1OnRight/upsideDown override props — a status bar has no rendered content of its
+// orientationMode/p1OnRight/upsideDown override props - a status bar has no rendered content of its
 // own that could need to desync from the ambient reading (FakeLandscapeView's fading dual-zone case
 // doesn't apply here), so there's nothing an explicit override would ever be for.
 //

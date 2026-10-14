@@ -9,7 +9,7 @@ export type UseSettledLayoutResult<T> = {
   size: SettledLayoutSize | null
 }
 
-// Native's onLayout is reliable — it always fires with the real size before the first paint that
+// Native's onLayout is reliable - it always fires with the real size before the first paint that
 // matters, so this is a plain onLayout-backed measurement with no correction needed. See
 // useSettledLayout.web.ts for the web-specific fallback this hook exists to provide there.
 export function useSettledLayout<T extends View = View>(): UseSettledLayoutResult<T> {

@@ -5,7 +5,7 @@ import { DeviceMotionMeasurement, DeviceMotionModule, OrientationStateProvider }
 import { useRotatedWindowDimensions } from '../useRotatedWindowDimensions'
 
 // Same local test double as useRotation.test.tsx/useOrientationState.test.tsx. The mocked
-// useWindowDimensions() (src/__mocks__/react-native.ts) always returns a fixed 402x874 — this suite
+// useWindowDimensions() (src/__mocks__/react-native.ts) always returns a fixed 402x874 - this suite
 // only needs to confirm rotation correctly swaps that fixed pair, not that the underlying window
 // size itself is read correctly (already covered elsewhere).
 function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity: { x: number; y: number } | null) => void } {

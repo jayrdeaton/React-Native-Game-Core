@@ -4,7 +4,7 @@ import { Platform, useWindowDimensions } from 'react-native'
 
 import { DeviceMotionMeasurement, DeviceMotionModule, OrientationState, OrientationStateProvider, useOrientationState } from '../useOrientationState'
 
-// A local, hand-built test double for the injected deviceMotion module — production code never
+// A local, hand-built test double for the injected deviceMotion module - production code never
 // imports expo-sensors at all anymore (see useOrientationState.tsx's own DeviceMotionModule doc),
 // so there's nothing to moduleNameMapper-mock here; this just satisfies the same small interface
 // directly. Recreated fresh per test (see beforeEach) so each one gets its own clean listener slot,
@@ -30,7 +30,7 @@ function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity:
 
 let fakeDeviceMotion = createFakeDeviceMotion()
 
-// Every test needs the Provider mounted with a deviceMotion module injected — useOrientationState
+// Every test needs the Provider mounted with a deviceMotion module injected - useOrientationState
 // reads from Context and silently never updates without one (see that hook's own doc).
 function wrapper({ children }: { children?: ReactNode }) {
   return <OrientationStateProvider deviceMotion={fakeDeviceMotion.module}>{children}</OrientationStateProvider>
@@ -101,7 +101,7 @@ describe('useOrientationState', () => {
     fakeDeviceMotion.emit({ x: 8, y: 0 })
     expect(result.current.orientationMode).toBe('sideBySide')
 
-    fakeDeviceMotion.emit({ x: 0.01, y: 0.01 }) // flat on a table — magnitude below MIN_GRAVITY_MAGNITUDE
+    fakeDeviceMotion.emit({ x: 0.01, y: 0.01 }) // flat on a table - magnitude below MIN_GRAVITY_MAGNITUDE
     act(() => {
       jest.advanceTimersByTime(300)
     })
@@ -113,7 +113,7 @@ describe('useOrientationState', () => {
   it('detects upside-down portrait as a distinct case from right-side-up', () => {
     const { result } = renderHook(() => useOrientationState(), { wrapper })
 
-    fakeDeviceMotion.emit({ x: 0, y: 8 }) // y dominant, positive — upside-down per candidateFromGravity
+    fakeDeviceMotion.emit({ x: 0, y: 8 }) // y dominant, positive - upside-down per candidateFromGravity
     act(() => {
       jest.advanceTimersByTime(300)
     })
@@ -123,7 +123,7 @@ describe('useOrientationState', () => {
   })
 
   it('freezes orientationMode/p1OnRight/upsideDown for a locked call site while an unlocked sibling keeps following', () => {
-    // Two sibling consumers under the SAME Provider — renderHook's own `wrapper` option mounts a
+    // Two sibling consumers under the SAME Provider - renderHook's own `wrapper` option mounts a
     // fresh Provider (and fresh DeviceMotion subscription) per call, so two separate renderHook
     // calls would each get their own isolated Provider instead of actually sharing state.
     let lockedValue: OrientationState | undefined
@@ -179,7 +179,7 @@ describe('useOrientationState', () => {
     fakeDeviceMotion.emit({ x: 8, y: 0 })
     expect(latest?.orientationMode).toBe('sideBySide')
 
-    // Simulates navigating away — the screen consuming the hook unmounts, but the Provider (a
+    // Simulates navigating away - the screen consuming the hook unmounts, but the Provider (a
     // sibling of the router, mounted once at the app root) is untouched by this rerender, since
     // it's the same element in the same tree position.
     rerender(<OrientationStateProvider deviceMotion={fakeDeviceMotion.module}>{null}</OrientationStateProvider>)
@@ -196,7 +196,7 @@ describe('useOrientationState', () => {
   it('never resolves past its unresolved default when the Provider is mounted with no deviceMotion module injected, and warns once in dev', () => {
     const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {})
     // Provider mounted (unlike the "no Provider at all" case, already covered by the rest of this
-    // file's OrientationStateContext default) but without deviceMotion — the one case that should
+    // file's OrientationStateContext default) but without deviceMotion - the one case that should
     // actually reach useOrientationStateSource's own warning, since that only runs from inside it.
     const { result } = renderHook(() => useOrientationState(), { wrapper: OrientationStateProvider })
     expect(result.current).toEqual({ orientationMode: 'faceToFace', p1OnRight: true, upsideDown: false, resolved: false })
@@ -204,7 +204,7 @@ describe('useOrientationState', () => {
     warnSpy.mockRestore()
   })
 
-  // Same Platform.OS mutation convention as rotation.test.ts's own 'on web' block — mutate the
+  // Same Platform.OS mutation convention as rotation.test.ts's own 'on web' block - mutate the
   // mocked module's property directly (not a fresh jest.mock, since every other test in this file
   // needs the native 'ios' default) and restore it afterward so this doesn't leak into them.
   describe('on web', () => {
@@ -214,7 +214,7 @@ describe('useOrientationState', () => {
       Platform.OS = originalOS
     })
 
-    it('resolves sideBySide with p1OnRight false — left, not whatever the native accelerometer path defaults true to', () => {
+    it('resolves sideBySide with p1OnRight false - left, not whatever the native accelerometer path defaults true to', () => {
       Platform.OS = 'web'
       ;(useWindowDimensions as jest.Mock).mockReturnValueOnce({ width: 900, height: 400, scale: 1, fontScale: 1 })
       const { result } = renderHook(() => useOrientationState(), { wrapper })

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LayoutChangeEvent, View } from 'react-native'
 
-// Deliberately not imported from './useSettledLayout' — that specifier resolves to THIS file on
+// Deliberately not imported from './useSettledLayout' - that specifier resolves to THIS file on
 // web via Metro's platform-extension resolution, which would make it circular from inside itself.
 export type SettledLayoutSize = { width: number; height: number }
 
@@ -12,19 +12,19 @@ export type UseSettledLayoutResult<T> = {
 }
 
 // A container's own onLayout can simply never fire on the very first mount through Expo Router on
-// web — the same category of race useSettledWindowDimensions fixes for the whole window, just at
+// web - the same category of race useSettledWindowDimensions fixes for the whole window, just at
 // the level of one measured container instead. Fleet games have hit this as a Skia canvas sized
 // from a useState(0)/onLayout pair that never gets its first real measurement, staying stuck at its
 // zero initial value until something unrelated forces a relayout.
 //
-// Re-measures the container directly via getBoundingClientRect() — bypassing onLayout entirely,
+// Re-measures the container directly via getBoundingClientRect() - bypassing onLayout entirely,
 // same reasoning as useSettledWindowDimensions reading window.innerWidth/innerHeight directly
-// rather than trusting react-native-web's own Dimensions module — two animation frames after mount,
+// rather than trusting react-native-web's own Dimensions module - two animation frames after mount,
 // if onLayout hasn't already reported a real (non-zero) size by then. A real subsequent onLayout
 // call (an actual resize) is unaffected; this only ever corrects a missing first measurement.
 //
 // Also dispatches one synthetic 'resize' event on window at that same two-frame mark, regardless of
-// whether a correction was needed — see useSettledWindowDimensions.web.ts's own comment for why:
+// whether a correction was needed - see useSettledWindowDimensions.web.ts's own comment for why:
 // confirmed by hand that a @shopify/react-native-skia web <Canvas> can already have the right size
 // and still never paint its first frame without a real 'resize' *event*, independent of props/state.
 export function useSettledLayout<T extends View = View>(): UseSettledLayoutResult<T> {

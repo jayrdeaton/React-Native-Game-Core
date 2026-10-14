@@ -59,7 +59,7 @@ describe('useThemedRootBackground', () => {
   })
 
   // The module itself also fires a single SystemUI.setBackgroundColorAsync('#000000') call the
-  // instant it's imported, before any component has rendered or any `dark` value is known — see the
+  // instant it's imported, before any component has rendered or any `dark` value is known - see the
   // module's own doc for why. jest.isolateModules gives this one test a private module registry so
   // the mapped expo-system-ui mock is freshly required (a fresh jest.fn(), unpolluted by the
   // beforeEach-cleared shared instance every other test in this file uses) and the import-time call

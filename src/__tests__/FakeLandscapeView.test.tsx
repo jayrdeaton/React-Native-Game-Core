@@ -5,7 +5,7 @@ import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
 import { FakeLandscapeView } from '../FakeLandscapeView'
 import { DeviceMotionMeasurement, DeviceMotionModule, OrientationStateProvider } from '../useOrientationState'
 
-// Same local test double as useOrientationState.test.tsx/useRotation.test.tsx — production code
+// Same local test double as useOrientationState.test.tsx/useRotation.test.tsx - production code
 // never imports expo-sensors directly, so there's nothing to moduleNameMapper-mock here.
 function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity: { x: number; y: number } | null) => void } {
   let listener: ((measurement: DeviceMotionMeasurement) => void) | null = null
@@ -161,7 +161,7 @@ describe('FakeLandscapeView', () => {
   })
 
   // Unlike the explicit-prop tests above (which never touch the ambient useOrientationState() read
-  // at all), these drive the REAL hook through a real OrientationStateProvider + fake DeviceMotion —
+  // at all), these drive the REAL hook through a real OrientationStateProvider + fake DeviceMotion -
   // matching useRotation.test.tsx's own convention now that this component lives in the same package
   // as the real implementation, rather than split-screen's old approach of mocking the whole
   // '@tastic/core' module (which stopped being an option the moment this file itself became part of
@@ -204,7 +204,7 @@ describe('FakeLandscapeView', () => {
 
     it('honors an explicit prop over the ambient value for that one field, while still falling back for the others', () => {
       const style = { backgroundColor: 'purple' }
-      // upsideDown explicitly false overrides the ambient upsideDown:true — orientationMode/p1OnRight
+      // upsideDown explicitly false overrides the ambient upsideDown:true - orientationMode/p1OnRight
       // still come from the ambient read.
       render(
         <FakeLandscapeView upsideDown={false} style={style}>
@@ -442,7 +442,7 @@ describe('FakeLandscapeView passThrough', () => {
 
 // Regression: FakeLandscapeView used to return a different element tree per angle (bare View at 0°,
 // wrapped at ±90°), so rotating between them unmounted and remounted every descendant, wiping their
-// state. The tree must be identical at every angle — only styles change — for every style shape.
+// state. The tree must be identical at every angle - only styles change - for every style shape.
 describe('FakeLandscapeView children stability across rotation', () => {
   const mounts = jest.fn()
   const unmounts = jest.fn()
