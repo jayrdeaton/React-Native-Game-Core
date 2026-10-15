@@ -29,7 +29,7 @@ export type OrientationProviderProps = {
   onLockChange?: (settings: OrientationLockSettings) => void
   // Opt-in (default false). When true, the shared orientation reading itself freezes while
   // useOrientationLock().locked is true: every consumer - useOrientationState/useRotation/
-  // FakeLandscapeView/RotationAwareStatusBar/getOrientationSnapshot, with or without their own
+  // FakeLandscapeView/useRotationAwareStatusBar/getOrientationSnapshot, with or without their own
   // per-call `locked` argument - sees the reading that was current when the user locked, including a
   // component that mounts AFTER the lock (which with per-call-site locking would snapshot the live
   // reading at its own mount instead). Nothing needs to be handed the flag by hand. Unlocking resumes
@@ -45,7 +45,7 @@ export type OrientationProviderProps = {
   freezeWhileLocked?: boolean
   // Opt-in (default false). When true, every consumer of the shared reading sees PORTRAIT (rotation 0) for as long as the SOFTWARE
   // keyboard is showing, and the real orientation again once it hides - so `useRotation()`, `useRotatedWindowDimensions()`,
-  // FakeLandscapeView, RotationAwareStatusBar and anything built on them (hud dialogs, a host's own rotated frames) all revert
+  // FakeLandscapeView, useRotationAwareStatusBar and anything built on them (hud dialogs, a host's own rotated frames) all revert
   // together, with nothing handed the flag by hand.
   // Why it exists: an app that stays portrait-locked at the OS level and fakes landscape by turning a View can't turn the KEYBOARD -
   // iOS draws it in the app's real interface orientation, so it always opens portrait relative to the device, which in a faked

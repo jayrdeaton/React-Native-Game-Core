@@ -60,7 +60,7 @@ import { clamp, length, scale, type Vec2 } from '@tastic/core/math'
 The root entry re-exports the same functions, so existing imports keep working. Headless code
 (`@tastic/input`, `@tastic/physics`, `@tastic/sprites`, or an app's own physics step) should prefer the
 subpath: importing the root barrel loads every app-level module behind it (`expo-system-ui`,
-`expo-status-bar`, AsyncStorage, `@tastic/edge-guard`, `@rific/core`) and runs
+AsyncStorage, `@tastic/edge-guard`, `@rific/core`) and runs
 `useThemedRootBackground`'s import-time root background call. `package.json`'s `sideEffects` lists only
 the root entry, so bundlers can still tree-shake the math entry.
 
@@ -87,6 +87,10 @@ it owns the native settings that keep it that way:
 - Android: `android:appCategory="game"` on `<application>`. For apps targeting API 36 or later, Android
   16 and 17 ignore `screenOrientation` on screens at least 600dp wide (tablets, unfolded foldables),
   except for apps categorized as games.
+- iOS: `UIViewControllerBasedStatusBarAppearance` on, so each screen sets the status bar and it can
+  hide while the content is turned (see `useRotationAwareStatusBar` below). An app linked against the
+  iOS 27 SDK can't set the bar app-wide any more. With it on, React Native's `StatusBar` logs an error,
+  so the app mounts none.
 
 A portrait-only app that draws no rotation of its own passes `["@tastic/core", { "drawsRotation": false }]`:
 it gets the same lock, except its iPad list keeps UpsideDown, since iOS's own flip is the only one there.
@@ -151,7 +155,7 @@ that setting is persisted, via `OrientationProvider`'s own `lockInitialValue`/`o
 #### Optional: freeze the shared reading while locked (`freezeWhileLocked`)
 
 By default, "locked" is per-call-site: each `useOrientationState(locked)` / `useRotation(locked)` /
-`FakeLandscapeView locked` / `RotationAwareStatusBar locked` snapshots the live reading when *its own*
+`FakeLandscapeView locked` / `useRotationAwareStatusBar({ locked })` snapshots the live reading when *its own*
 flag flips (or at its own mount), and every call site must be handed the same flag by hand. Pass
 `freezeWhileLocked` to `OrientationProvider` to make the **shared reading itself** freeze while
 `useOrientationLock().locked` is true instead:
@@ -266,44 +270,61 @@ function GameBoard() {
 and `useRotatedWindowDimensions` - swaps width/height for `±90°`, passes `0°`/`180°` through
 unchanged - exposed directly for a caller doing its own composition.
 
-### Root layout & orientation: `RotationAwareStatusBar`
+### Root layout & orientation: `useRotationAwareStatusBar`
 
 The OS status bar is physically glued to the device's top edge and can't itself rotate to match -
 so the moment `FakeLandscapeView`/`getViewRotation` have spun anything else on screen into
 `sideBySide` (±90°) or upside-down `faceToFace` (180°), a status bar left showing renders sideways or
-upside-down against content that's otherwise correctly compensated. `RotationAwareStatusBar` hides
-the real status bar whenever this package's own rotation reading says the screen is currently
-rotated, and shows it only at `0°`:
+upside-down against content that's otherwise correctly compensated. `useRotationAwareStatusBar`
+returns the stack screen options that hide it whenever this package's own rotation reading says the
+screen is turned, and show it only at `0°`. Spread them into your root `<Stack screenOptions>`:
 
 ```tsx
-import { RotationAwareStatusBar } from '@tastic/core'
+import { useRotationAwareStatusBar, useThemedRootBackground } from '@tastic/core'
+import { Stack } from 'expo-router'
 
-// With OrientationProvider's freezeWhileLocked, the shared reading already freezes while locked,
-// so no `locked` prop is needed:
-<RotationAwareStatusBar />
+function RootStack() {
+  const statusBar = useRotationAwareStatusBar({ style: 'light' })
+  return <Stack screenOptions={{ ...useThemedRootBackground(true, false), ...statusBar }} />
+}
 ```
 
-**`locked` must be threaded through from your app's own "Lock Orientation" setting - the same value
-you already pass to `useOrientationState`/`useRotation` elsewhere.** It's optional in the type
-(`locked?: boolean`, defaulting to `false`) only so a bare `<RotationAwareStatusBar />` matches what a
-bare `useOrientationState()` call would do; it is not optional in practice for any app that has a
-lock-orientation setting at all. Omitting it silently falls back to "always track live tilt" - so the
-moment a player locks orientation and keeps tilting the device, this bar keeps hiding/showing itself
-off the live tilt reading while the rest of the screen has correctly frozen, and the two visibly
-diverge. This was a real bug in 4 of the 5 apps that hand-rolled this component before it was
-extracted here; only one had it right - the whole reason it's a package component now instead of
-another hand-rolled copy is to make that divergence impossible to reintroduce.
+It returns `{ statusBarHidden }` plus `statusBarStyle`/`statusBarAnimation` when you pass `style`
+(`'auto' | 'inverted' | 'light' | 'dark'`) or `animation` (`'none' | 'fade' | 'slide'`); keys you don't
+pass are left out, so spreading it never overrides an option with `undefined`. These are
+react-native-screens' native-stack options, which expo-router's `Stack` and
+`@react-navigation/native-stack` take as is. A screen's own `options` win over the stack's, so a
+screen that should always hide the bar (a full-screen game) passes `statusBarHidden: true` itself.
+Call the hook inside `OrientationProvider` (the same place you'd call `useRotation()`).
 
-Optional `style` (`'auto' | 'inverted' | 'light' | 'dark'`), `animated` and `hideTransitionAnimation`
-props pass straight through to `expo-status-bar`'s `StatusBar` - e.g. `style='light'` for a surface that is
-always dark. Omitted, they leave expo-status-bar's own defaults untouched. `hidden` stays
-`rotation !== 0` and is not overridable.
+**Why screen options, not a `<StatusBar>` component.** An app linked against the iOS 27 SDK can no
+longer hide or restyle the status bar app-wide: UIKit's own header says setting it "does nothing if
+your application ... is linked against SDK versions 27.0 or later". That is the only way React
+Native's `StatusBar` (and so `expo-status-bar`) sets it on iOS, so a build made with Xcode 27 kept the
+bar showing, sideways. react-native-screens sets it per view controller instead, which needs
+`UIViewControllerBasedStatusBarAppearance` on; the config plugin turns it on (see above). With it on,
+every React Native `StatusBar` logs an error (a red box in a dev build), so an app using this package
+**mounts no `StatusBar` at all**: drop `expo-status-bar`'s component, and pass `statusBar={false}` to
+`@rific/auto-paper`'s `Provider`, which otherwise renders one. Set the bar's color with `style` here
+(or `statusBarStyle` on a screen) instead. Android needs nothing extra: react-native-screens sets the
+bar there from the same options.
 
-Render your wrapper (`AppRotationAwareStatusBar` above, or whatever you call it) *inside* whatever
-provider tree actually holds the `lockOrientation` value it reads - your settings/Redux provider -
-not in a root layout component that itself renders that provider. Put it outside that tree and the
-hook backing `settings.lockOrientation` runs without the context it needs, which either crashes or
-silently reads stale/default data depending on how that hook is written.
+**Not in an Expo dev-client build.** expo-dev-launcher puts its own view controller between the
+window's root view controller and react-native-screens' stack, and react-native-screens only looks one
+level down for the view controller that owns the status bar, so in a dev-client build the bar keeps
+showing (its own comment says it "blocks react-native-screens' single-level VC traversal for
+orientation and other window traits"). Release builds (preview, production) don't have that view
+controller. Check the hide in one of those, not in a development build.
+
+`locked` (optional, default `false`) has `useRotation(locked)`'s contract. Under
+`OrientationProvider`'s `freezeWhileLocked` (below) the shared reading already freezes while locked, so
+no `locked` is needed.
+
+This replaced the `RotationAwareStatusBar` component (removed in 0.14.0). Migrating: delete every
+`<RotationAwareStatusBar />` and `<StatusBar ... />`, spread `useRotationAwareStatusBar({ style })`
+into the root stack's `screenOptions`, give any screen that always hid the bar
+`options={{ statusBarHidden: true }}`, pass auto-paper's `Provider` `statusBar={false}`, and make a new
+native build (the Info.plist key only changes at prebuild).
 
 ## Root window background: `useThemedRootBackground`
 
@@ -333,8 +354,7 @@ export default function RootLayout() {
 }
 ```
 
-It's a hook, not a wrapping component, unlike `RotationAwareStatusBar` above (this package's existing
-precedent for a root-`_layout.tsx` helper) - some fleet apps' root `<Stack>` renders explicit
+It's a hook returning screen options, like `useRotationAwareStatusBar` above - some fleet apps' root `<Stack>` renders explicit
 `<Stack.Screen>` children, and a hook returning a plain options object composes with both that shape
 and a bare `<Stack screenOptions={...} />` for free, where a wrapping component would need its own
 `children` passthrough prop for the first shape alone.
@@ -379,7 +399,7 @@ hidden.
 Published to the public npm registry as `@tastic/core`. Everything described above, including
 `FakeLandscapeView`, `useRotatedWindowDimensions`, `rotateDimensions` (moved here from
 `@tastic/split-screen`, which never had any real dependency on that package's own two-player
-pieces), `RotationAwareStatusBar` and `useThemedRootBackground`, is live on npm.
+pieces), `useRotationAwareStatusBar` and `useThemedRootBackground`, is live on npm.
 
 Game settings are not this package's job anymore: `createGameSettingsProvider` and
 `SettingsAndProfilesGate` were removed on 2026-10-07. The games keep their settings in Redux with
@@ -417,7 +437,7 @@ An app that stays portrait-locked at the OS level and fakes landscape by turning
 the app's real interface orientation, so it always opens portrait relative to the device - sideways to a player holding the phone in a
 faked landscape, and covering the wrong part of the turned screen. Set `portraitWhileKeyboard` on `<OrientationProvider>` and every
 consumer of the shared reading (`useRotation`, `useRotatedWindowDimensions`, `useOrientationState`, `FakeLandscapeView`,
-`RotationAwareStatusBar`, and anything built on them) reads **portrait** for as long as the *software* keyboard is showing, and the real
+`useRotationAwareStatusBar`, and anything built on them) reads **portrait** for as long as the *software* keyboard is showing, and the real
 orientation again when it hides:
 
 ```tsx
