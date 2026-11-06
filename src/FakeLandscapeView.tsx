@@ -31,9 +31,10 @@ export interface FakeLandscapeViewProps {
   children: ReactNode
 }
 
-// Wraps `children` in whatever rotation keeps it gravity-upright for however the device is
-// currently being held - see getViewRotation for the angle itself, and its own comment for why this
-// is needed at all now that the app is portrait-locked at the OS level.
+// Since 0.15 the ambient reading never asks for a turn (useOrientationState reads the window's shape,
+// and getViewRotation returns 0 for side by side), so with no explicit `rotation` this renders at 0°.
+// Only an explicit `rotation` (@tastic/hud's RotatedFrame) still turns it. It goes once hud and
+// @tastic/split-screen stop using it. What follows describes how the turns themselves are drawn.
 //
 // A 90°/-90° rotation swaps the content's effective footprint (what was width becomes height), so
 // those two cases size/center the inner container explicitly for the swap - the standard "fake

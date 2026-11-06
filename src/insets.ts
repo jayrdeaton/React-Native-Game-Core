@@ -10,16 +10,10 @@ export interface EdgeInsets {
 // Clockwise compass order - index arithmetic below walks this cycle to remap edges under rotation.
 const COMPASS: (keyof EdgeInsets)[] = ['top', 'right', 'bottom', 'left']
 
-// react-native-safe-area-context's useSafeAreaInsets() always reports insets relative to the
-// device's own fixed physical frame (the notch is always "top", the home indicator always
-// "bottom") - because the OS itself thinks the interface is still portrait-locked and never
-// rotates, safe-area-context has no idea a FakeLandscapeView-style ancestor is rotating the content
-// underneath it. Positioning something at `top: insets.top` inside rotated content puts it near the
-// content's own pre-rotation top edge, which after rotation may visually land nowhere near the
-// screen's real top - e.g. under a 90° rotation it ends up on a visual side edge instead. This
-// remaps a physical EdgeInsets onto whichever edge it actually corresponds to once rotated by the
-// same `rotation` getViewRotation already computed, so `top: rotated.top` always lands at the
-// screen's real, visual top regardless of how the device is being held.
+// Remaps safe-area insets (reported in the screen's own frame) onto the edges of content turned by
+// `rotation`, so `top: rotated.top` lands at the screen's real top inside turned content. Since 0.15
+// nothing in this package turns content, so callers pass 0 and get the insets back unchanged; it goes
+// once @tastic/hud and @tastic/split-screen stop calling it.
 export function rotateInsets(insets: EdgeInsets, rotation: ViewRotation): EdgeInsets {
   const steps = (((rotation / 90) % 4) + 4) % 4
   const edgeFor = (visualEdge: keyof EdgeInsets) => insets[COMPASS[(COMPASS.indexOf(visualEdge) + steps) % 4]]

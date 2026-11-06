@@ -1,47 +1,21 @@
-import { Platform } from 'react-native'
-
 import { OrientationMode } from './OrientationMode'
 
 export type ViewRotation = 0 | 90 | 180 | -90
 
-// Degrees to rotate a portrait-locked screen's CONTENT so it reads gravity-upright regardless of
-// how the device is actually being held. Needed at all only because the consuming app locks itself
-// to portrait permanently at the OS level (see useOrientationState's own top comment) - the render
-// surface itself never rotates anymore, so without this, content stays glued to the device's own
-// physical top edge no matter which way the device is turned; today's existing "unrotated in
-// sideBySide" behavior only ever made sense when the OS was the one doing the actual rotating.
-//
-// sideBySide's rotation direction is tied to p1OnRight (already resolved against the same physical
-// hold), not computed independently - there's no separate "upside-down landscape" case, only two
-// landscape directions total. faceToFace ignores p1OnRight entirely and just applies upsideDown's
-// own flip. Verified against a real device: p1OnRight's sign (from useOrientationState) needed the
-// OPPOSITE rotation from the first guess to read right-side-up - flip back here (not there) if a
-// future hardware change ever needs it, since p1OnRight's own left/right meaning was separately
-// confirmed correct on the same device.
-//
-// Web is excluded from sideBySide's own rotation entirely - that ±90° only exists to compensate for
-// a portrait-locked OS refusing to rotate its render surface for a physically-tilted device (see
-// this function's own top comment). A browser window has no such lock and no physical tilt to
-// compensate for: useOrientationState's own web fallback picks sideBySide purely from the window
-// already being wider than tall, so the window is already the correct shape on its own - applying
-// the native compensating rotation on top would spin already-correctly-oriented content sideways
-// instead of fixing anything. upsideDown's own 180° needs no matching exclusion: web's fallback
-// never reports upsideDown true in the first place (there's no signal to derive it from), so that
-// branch is already inert there.
-export function getViewRotation(orientationMode: OrientationMode, p1OnRight: boolean, upsideDown: boolean): ViewRotation {
-  if (orientationMode === 'sideBySide' && Platform.OS !== 'web') return p1OnRight ? -90 : 90
-  return upsideDown ? 180 : 0
+// Degrees to turn content for a seat mode. Until 0.15 a side by side reading on native meant the
+// phone was held sideways in a portrait-locked app, and this returned ±90 to turn the content the
+// rest of the way. The OS turns the interface now, and useOrientationState reads side by side from a
+// wide window, which is already the right shape, so side by side is 0, as it always was on web.
+// upsideDown keeps its 180 for a caller that passes it, though useOrientationState never reports it.
+// p1OnRight no longer changes the angle.
+export function getViewRotation(orientationMode: OrientationMode, _p1OnRight: boolean, upsideDown: boolean): ViewRotation {
+  return orientationMode === 'faceToFace' && upsideDown ? 180 : 0
 }
 
-// For a layout whose two seats sit in PERMANENTLY fixed zones - e.g. always the top/bottom halves
-// of a portrait-locked screen, never reflowing into left/right the way a fading dual-zone layout's
-// own panels do - only a genuine landscape hold means anything. Two seats held side by side
-// (landscape) read the screen the same way up, so that tilt rotates both zones' content
-// identically - see getOpposingZoneRotation below for the one place they then differ. A portrait
-// tilt, "upside down" or not, doesn't correspond to anything real for this layout: the zones can't
-// swap which physical seat each is nearest just because the device got spun while lying flat, so
-// unlike getViewRotation's own faceToFace branch, this deliberately never applies its 180°
-// upside-down flip - content just stays at 0° for any portrait-like reading.
+// For a layout whose two seats sit in permanently fixed zones (the top and bottom halves of a
+// portrait screen, say). A portrait reading never turns them, upside down or not: the zones can't
+// swap seats because the device was spun. Since 0.15 side by side is 0 too (see getViewRotation), so
+// this is always 0; kept until @tastic/split-screen stops re-exporting it.
 export function getFixedZoneRotation(orientationMode: OrientationMode, p1OnRight: boolean, upsideDown: boolean): ViewRotation {
   return orientationMode === 'sideBySide' ? getViewRotation(orientationMode, p1OnRight, upsideDown) : 0
 }
@@ -71,13 +45,9 @@ export function toRotationStyle(rotation: ViewRotation): { transform: [{ rotate:
   return rotation % 360 !== 0 ? { transform: [{ rotate: `${rotation}deg` }] } : undefined
 }
 
-// The dimensions analog of rotateInsets above: a ±90° rotation swaps a portrait-locked window's own
-// effective footprint (what was width becomes height, and vice versa) for content rendered inside a
-// FakeLandscapeView-style ancestor, since useWindowDimensions() itself never changes (the OS still
-// thinks it's portrait). 180°/0° don't change the footprint at all. Extracted out of
-// FakeLandscapeView's own inline swap so it's one implementation, dogfooded by the component that
-// most needs it correct, and reusable by any caller (e.g. a card-layout width/height budget) that
-// needs to reason about the same post-rotation footprint FakeLandscapeView itself renders into.
+// A ±90 turn swaps a footprint's width and height; 0 and 180 don't change it. Only an explicit ±90
+// (hud's RotatedFrame and its callers) still reaches the swap; nothing in this package asks for one
+// since 0.15.
 export function rotateDimensions(width: number, height: number, rotation: ViewRotation): { width: number; height: number } {
   return Math.abs(rotation) === 90 ? { width: height, height: width } : { width, height }
 }

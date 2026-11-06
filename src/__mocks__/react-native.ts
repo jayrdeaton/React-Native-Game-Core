@@ -1,4 +1,6 @@
 export const useWindowDimensions = jest.fn(() => ({ width: 402, height: 874, scale: 3, fontScale: 1 }))
+// The non-subscribing read (getOrientationSnapshot, trackInterfaceOrientation); a test sets it alongside useWindowDimensions.
+export const Dimensions = { get: jest.fn(() => ({ width: 402, height: 874, scale: 3, fontScale: 1 })) }
 export const Platform = { OS: 'ios' as const }
 
 // Added for FakeLandscapeView.test.tsx - the first component in this package to actually render a
@@ -33,19 +35,7 @@ export const StyleSheet = {
   absoluteFillObject: absoluteFill
 }
 
-// Added for useKeyboardVisible.test.tsx / OrientationProvider.portraitWhileKeyboard.test.tsx: a Keyboard whose listeners a test can
-// fire by hand. `keyboardListeners` is exported so a test can also assert how many are registered (none while a hook is disabled).
-type KeyboardListener = () => void
-export const keyboardListeners: Record<string, Set<KeyboardListener>> = {}
-export const Keyboard = {
-  addListener: jest.fn((event: string, listener: KeyboardListener) => {
-    ;(keyboardListeners[event] ??= new Set()).add(listener)
-    return { remove: () => keyboardListeners[event]?.delete(listener) }
-  })
-}
-export const emitKeyboard = (event: string) => keyboardListeners[event]?.forEach((listener) => listener())
-
-// Added for useBackgroundPause.test.tsx: an AppState whose 'change' listeners a test can fire by hand, same shape as Keyboard above.
+// Added for useBackgroundPause.test.tsx: an AppState whose 'change' listeners a test can fire by hand.
 type AppStateListener = (state: string) => void
 export const appStateListeners: Record<string, Set<AppStateListener>> = {}
 export const AppState = {

@@ -35,7 +35,13 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.js"
     },
-    "./app.plugin.js": "./app.plugin.js",
+    "./interface-orientation": {
+      "react-native": "./src/interfaceOrientation/index.ts",
+      "browser": "./src/interfaceOrientation/index.ts",
+      "types": "./dist/interfaceOrientation/index.d.ts",
+      "import": "./dist/interfaceOrientation/index.mjs",
+      "require": "./dist/interfaceOrientation/index.js"
+    },
     "./math": {
       "react-native": "./src/math/index.ts",
       "browser": "./src/math/index.ts",
@@ -51,6 +57,9 @@
   "types": "dist/index.d.ts",
   "typesVersions": {
     "*": {
+      "interface-orientation": [
+        "./dist/interfaceOrientation/index.d.ts"
+      ],
       "math": [
         "./dist/math/index.d.ts"
       ]
@@ -59,8 +68,6 @@
   "files": [
     "dist",
     "src",
-    "plugin",
-    "app.plugin.js",
     "!src/__tests__",
     "!src/__mocks__"
   ],
@@ -85,7 +92,6 @@
     "@infinitetoken/eslint-config": "0.2.1",
     "@infinitetoken/jest-config": "^0.5.2",
     "@infinitetoken/tsconfig": "^0.6.0",
-    "@rific/core": "^0.5.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest": "^30.0.0",
@@ -93,23 +99,28 @@
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-native": "^5.0.0",
-    "expo": "~57.0.26",
-    "expo-system-ui": "^57.0.4",
+    "expo": "~58.0.23",
+    "expo-screen-orientation": "~58.0.4",
+    "expo-system-ui": "~58.0.7",
     "jest": "^30.4.2",
     "jest-environment-jsdom": "^30.4.1",
     "prettier": "^3.8.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-native": "^0.86.3",
-    "tsup": "^8.0.0",
+    "react-native": "^0.88.1",
+    "tsup": "^9.0.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {
-    "@rific/core": ">=0.1.2",
-    "expo": ">=54.0.0",
+    "expo-screen-orientation": ">=58.0.0",
     "expo-system-ui": ">=57.0.0",
     "react": ">=19.0.0",
     "react-native": ">=0.76.0"
+  },
+  "peerDependenciesMeta": {
+    "expo-screen-orientation": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public"

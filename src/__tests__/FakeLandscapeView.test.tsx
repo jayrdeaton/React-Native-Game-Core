@@ -1,30 +1,9 @@
-import { act, render, screen } from '@testing-library/react'
-import { ReactNode, useEffect, useRef, useState } from 'react'
-import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native'
+import { render, screen } from '@testing-library/react'
+import { useEffect, useRef, useState } from 'react'
+import { StyleProp, StyleSheet, useWindowDimensions, View, ViewStyle } from 'react-native'
 
 import { FakeLandscapeView } from '../FakeLandscapeView'
-import { DeviceMotionMeasurement, DeviceMotionModule, OrientationStateProvider } from '../useOrientationState'
-
-// Same local test double as useOrientationState.test.tsx/useRotation.test.tsx - production code
-// never imports expo-sensors directly, so there's nothing to moduleNameMapper-mock here.
-function createFakeDeviceMotion(): { module: DeviceMotionModule; emit: (gravity: { x: number; y: number } | null) => void } {
-  let listener: ((measurement: DeviceMotionMeasurement) => void) | null = null
-  const module: DeviceMotionModule = {
-    addListener: jest.fn((cb: (measurement: DeviceMotionMeasurement) => void) => {
-      listener = cb
-      return { remove: jest.fn() }
-    }),
-    setUpdateInterval: jest.fn()
-  }
-  return {
-    module,
-    emit: (gravity) => {
-      act(() => {
-        listener?.({ accelerationIncludingGravity: gravity })
-      })
-    }
-  }
-}
+import { ViewRotation } from '../rotation'
 
 type Flat = Record<string, unknown>
 const OVERLAY: ViewStyle[] = [StyleSheet.absoluteFill, { pointerEvents: 'box-none' }]
@@ -48,8 +27,6 @@ function lastViews() {
 
 const FLIP = { orientationMode: 'faceToFace', p1OnRight: false, upsideDown: true } as const
 const ZERO = { orientationMode: 'faceToFace', p1OnRight: false, upsideDown: false } as const
-const RIGHT = { orientationMode: 'sideBySide', p1OnRight: false, upsideDown: false } as const
-const LEFT = { orientationMode: 'sideBySide', p1OnRight: true, upsideDown: false } as const
 
 describe('FakeLandscapeView', () => {
   beforeEach(() => {
@@ -106,18 +83,29 @@ describe('FakeLandscapeView', () => {
     expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style, transform: [{ rotate: '180deg' }] })
   })
 
-  it('rotates 90° and swaps width/height when sideBySide with p1 on the left', () => {
+  it('draws no turn for side by side props, either seat order: the window is already wide (0.15)', () => {
+    const style = { backgroundColor: 'yellow' }
+    for (const p1OnRight of [false, true]) {
+      const { unmount } = render(
+        <FakeLandscapeView orientationMode='sideBySide' p1OnRight={p1OnRight} upsideDown={false} style={style}>
+          hello
+        </FakeLandscapeView>
+      )
+      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
+      unmount()
+    }
+  })
+
+  it.each([90, -90] as const)('turns %i° and swaps width/height for an explicit rotation', (rotation) => {
     const style = { backgroundColor: 'yellow' }
     render(
-      <FakeLandscapeView orientationMode='sideBySide' p1OnRight={false} upsideDown={false} style={style}>
+      <FakeLandscapeView rotation={rotation} style={style}>
         hello
       </FakeLandscapeView>
     )
 
     expect(screen.getByText('hello')).toBeTruthy()
-
-    const calls = (View as unknown as jest.Mock).mock.calls
-    expect(calls).toHaveLength(2)
+    expect((View as unknown as jest.Mock).mock.calls).toHaveLength(2)
 
     const { outerProps, outer, inner } = lastViews()
     expect(outer).toEqual(StyleSheet.absoluteFill)
@@ -128,141 +116,48 @@ describe('FakeLandscapeView', () => {
       height: 402,
       left: (402 - 874) / 2,
       top: (874 - 402) / 2,
-      transform: [{ rotate: '90deg' }],
+      transform: [{ rotate: `${rotation}deg` }],
       width: 874
     })
   })
 
-  it('rotates -90° and swaps width/height when sideBySide with p1 on the right', () => {
-    const style = { backgroundColor: 'yellow' }
-    render(
-      <FakeLandscapeView orientationMode='sideBySide' p1OnRight={true} upsideDown={false} style={style}>
-        hello
-      </FakeLandscapeView>
-    )
-
-    expect(screen.getByText('hello')).toBeTruthy()
-
-    const calls = (View as unknown as jest.Mock).mock.calls
-    expect(calls).toHaveLength(2)
-
-    const { outerProps, outer, inner } = lastViews()
-    expect(outer).toEqual(StyleSheet.absoluteFill)
-    expect(outerProps.pointerEvents).toBe('box-none')
-    expect(inner).toEqual({
-      ...style,
-      position: 'absolute',
-      height: 402,
-      left: (402 - 874) / 2,
-      top: (874 - 402) / 2,
-      transform: [{ rotate: '-90deg' }],
-      width: 874
-    })
-  })
-
-  // Unlike the explicit-prop tests above (which never touch the ambient useOrientationState() read
-  // at all), these drive the REAL hook through a real OrientationStateProvider + fake DeviceMotion -
-  // matching useRotation.test.tsx's own convention now that this component lives in the same package
-  // as the real implementation, rather than split-screen's old approach of mocking the whole
-  // '@tastic/core' module (which stopped being an option the moment this file itself became part of
-  // that package).
+  // The ambient read is the window's shape since 0.15, which never asks for a turn.
   describe('ambient default (orientationMode/p1OnRight/upsideDown all omitted)', () => {
-    let fakeDeviceMotion = createFakeDeviceMotion()
-
-    function wrapper({ children }: { children?: ReactNode }) {
-      return <OrientationStateProvider deviceMotion={fakeDeviceMotion.module}>{children}</OrientationStateProvider>
-    }
-
-    beforeEach(() => {
-      jest.useFakeTimers()
-      fakeDeviceMotion = createFakeDeviceMotion()
-    })
-
     afterEach(() => {
-      jest.useRealTimers()
+      ;(useWindowDimensions as jest.Mock).mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 })
     })
 
-    function commit(gravity: { x: number; y: number }) {
-      fakeDeviceMotion.emit(gravity)
-      act(() => {
-        jest.advanceTimersByTime(300)
-      })
-      fakeDeviceMotion.emit(gravity)
-    }
-
-    it('falls back to a live useOrientationState() read when every orientation prop is omitted', () => {
+    it.each([
+      [402, 874],
+      [874, 402]
+    ])('draws no turn in a %ix%i window', (width, height) => {
+      ;(useWindowDimensions as jest.Mock).mockReturnValue({ width, height, scale: 3, fontScale: 1 })
       const style = { backgroundColor: 'purple' }
-      render(<FakeLandscapeView style={style}>hello</FakeLandscapeView>, { wrapper })
-
-      commit({ x: 0, y: 8 }) // faceToFace + upsideDown, same gravity useRotation.test.tsx commits to 180°
+      render(<FakeLandscapeView style={style}>hello</FakeLandscapeView>)
 
       expect(screen.getByText('hello')).toBeTruthy()
-      const calls = (View as unknown as jest.Mock).mock.calls
-      expect(calls.length).toBeGreaterThan(0)
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style, transform: [{ rotate: '180deg' }] })
+      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
     })
 
     it('honors an explicit prop over the ambient value for that one field, while still falling back for the others', () => {
       const style = { backgroundColor: 'purple' }
-      // upsideDown explicitly false overrides the ambient upsideDown:true - orientationMode/p1OnRight
-      // still come from the ambient read.
       render(
-        <FakeLandscapeView upsideDown={false} style={style}>
-          hello
-        </FakeLandscapeView>,
-        { wrapper }
-      )
-
-      commit({ x: 0, y: 8 }) // would otherwise commit upsideDown:true, per the test above
-
-      const calls = (View as unknown as jest.Mock).mock.calls
-      expect(calls.length).toBeGreaterThan(0)
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
-    })
-
-    it('an explicit rotation wins over the ambient reading', () => {
-      const style = { backgroundColor: 'purple' }
-      render(
-        <FakeLandscapeView rotation={0} style={style}>
-          hello
-        </FakeLandscapeView>,
-        { wrapper }
-      )
-
-      commit({ x: 0, y: 8 }) // the ambient reading commits 180°
-
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
-    })
-
-    it('freezes at whatever the ambient reading was when locked became true, ignoring a later tilt', () => {
-      const style = { backgroundColor: 'purple' }
-      const { rerender } = render(
-        <FakeLandscapeView locked={false} style={style}>
-          hello
-        </FakeLandscapeView>,
-        { wrapper }
-      )
-
-      commit({ x: 0, y: 8 }) // commits upsideDown:true -> 180°
-      expect(lastViews().inner.transform).toEqual([{ rotate: '180deg' }])
-
-      rerender(
-        <FakeLandscapeView locked={true} style={style}>
+        <FakeLandscapeView upsideDown style={style}>
           hello
         </FakeLandscapeView>
       )
 
-      commit({ x: 8, y: 0 }) // would otherwise commit sideBySide/p1OnRight -> -90°, but locked is now true
+      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style, transform: [{ rotate: '180deg' }] })
+    })
 
-      expect(lastViews().inner.transform).toEqual([{ rotate: '180deg' }])
+    it('an explicit rotation wins over the ambient reading', () => {
+      render(<FakeLandscapeView rotation={180}>hello</FakeLandscapeView>)
+
+      expect(lastViews().inner).toEqual({ ...FILL_INNER, transform: [{ rotate: '180deg' }] })
     })
   })
 })
 
-// Layout equivalence with the ORIGINAL single-View implementation (a bare <View style> at 0°,
-// <View style flip180> at 180°) for every real caller pattern in the fleet. Patterns 2-4 fail against
-// the earlier "flex:1 outer, caller style on inner" implementation: its outer was always {flex: 1}
-// (in flow, stealing flex space from siblings) and its inner carried position/width/height.
 describe('FakeLandscapeView 0/180 layout equivalence with the old single-View implementation', () => {
   const patterns: Record<string, StyleProp<ViewStyle>> = {
     'flex:1 (achievements screens)': { flex: 1 },
@@ -359,13 +254,13 @@ describe('FakeLandscapeView 0/180 layout equivalence with the old single-View im
   })
 
   it('+/-90 is unchanged from the original: outer absoluteFill box-none, inner = caller style + absolute + swapped size + rotate', () => {
-    for (const [angle, props] of [
-      ['90deg', RIGHT],
-      ['-90deg', LEFT]
+    for (const [angle, rotation] of [
+      ['90deg', 90],
+      ['-90deg', -90]
     ] as const) {
       const style = { alignItems: 'center', flex: 1 } as const
       const { unmount } = render(
-        <FakeLandscapeView {...props} style={style}>
+        <FakeLandscapeView rotation={rotation} style={style}>
           x
         </FakeLandscapeView>
       )
@@ -394,7 +289,7 @@ describe('FakeLandscapeView explicit rotation', () => {
     unmount()
 
     render(
-      <FakeLandscapeView {...RIGHT} rotation={0} style={style}>
+      <FakeLandscapeView {...FLIP} rotation={0} style={style}>
         x
       </FakeLandscapeView>
     )
@@ -472,18 +367,18 @@ describe('FakeLandscapeView children stability across rotation', () => {
     'explicit size': { height: 100, width: 100 },
     none: undefined
   }
-  const props = { zero: ZERO, right: RIGHT, left: LEFT, flip: FLIP }
+  const rotations: ViewRotation[] = [90, -90, 180, 0, -90, 180, 90, 0]
 
   for (const [name, style] of Object.entries(styles)) {
     it(`never remounts children when rotation changes between 0, 90, -90 and 180 (${name})`, () => {
       const { rerender } = render(
-        <FakeLandscapeView {...props.zero} style={style}>
+        <FakeLandscapeView rotation={0} style={style}>
           <Probe />
         </FakeLandscapeView>
       )
-      for (const next of [props.right, props.left, props.flip, props.zero, props.left, props.flip, props.right, props.zero]) {
+      for (const rotation of rotations) {
         rerender(
-          <FakeLandscapeView {...next} style={style}>
+          <FakeLandscapeView rotation={rotation} style={style}>
             <Probe />
           </FakeLandscapeView>
         )
