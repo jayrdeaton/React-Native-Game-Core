@@ -55,7 +55,7 @@ src/
   useBackgroundPause.ts           - latches a pause when AppState leaves 'active' while a lazy shouldPause() getter is true; holds until resume() (games show a Paused dialog)
   useGameLoop.ts                  - drives onTick(dt) once per animation frame while enabled, via computeClampedDt internally; toggling enabled off/on resets the timestamp baseline so the next tick is dt = 1
   useIsTouchPrimaryDevice.ts       - native implementation: always returns true
-  useIsTouchPrimaryDevice.web.ts   - web implementation: touch-primary heuristic from maxTouchPoints + matchMedia('(pointer: coarse)') + a narrow-viewport (<700px) fallback; live-updated on resize and matchMedia change
+  useIsTouchPrimaryDevice.web.ts   - web implementation: touch-primary heuristic: no matchMedia('(pointer: fine)'), and maxTouchPoints > 0 or '(pointer: coarse)' (whatever the window's width, since 2026-11-07); live-updated on resize and matchMedia change
   useSettledWindowDimensions.ts     - native implementation: plain re-export of react-native's useWindowDimensions
   useSettledWindowDimensions.web.ts - web implementation: reads window.innerWidth/innerHeight directly (not react-native-web's Dimensions module) and re-checks two animation frames after mount, fixing a real race where the first reading is wrong and nothing forces a correction
 ```
@@ -164,6 +164,24 @@ Why: Solitaire stopped hiding the bar on rotation once Jay built it locally with
 Consequences for an app (the README's migration steps): with the key on, `RCTStatusBarManager` logs an `RCTLogError` (a red box in dev) for every `StatusBar` mounted, so an app mounts none: no expo-status-bar component, and `@rific/auto-paper`'s `Provider` with `statusBar={false}` (added for this; it also stops `Appbar.Header`'s). Status bar color moves to `style` here or a screen's `statusBarStyle`. Spreading the hook into the root Stack's `screenOptions` covers every screen; a screen's own `options` win (e.g. `statusBarHidden: true` on a full-screen game). Changing `screenOptions` on a rotation doesn't re-render the screens' components (React Navigation's `StaticContainer`), only the native screens' props. Android: react-native-screens sets the bar from the same options (`WindowInsetsControllerCompat`), no key needed. Tests: `useRotationAwareStatusBar.test.tsx` (the old component's cases, as options), `withViewControllerStatusBar.test.ts`.
 
 Verified in Solitaire on the iOS 27 simulator, Release builds linked against the iOS 27 SDK (a fake tilt fed in through a temporarily patched expo-sensors): hidden at +90, -90 and 180, shown again in portrait, no red box. **A dev-client build never hides it:** expo-dev-launcher inserts `DevLauncherViewController` between the window's root view controller and the `RNSNavigationController` (`ExpoDevLauncherReactDelegateHandler.swift` says so itself), and react-native-screens' swizzled `childViewControllerForStatusBarHidden` only checks the root's LAST child for an RNS controller, so the chain stops at the root. Forcing `statusBarHidden: true` on every screen changed nothing there. Release builds don't have the launcher's controller. Hiding the dev menu's floating button (its own full-screen `DevMenuFABWindow`, level `statusBar - 1`) changed nothing either.
+
+## A thin desktop window is a computer (2026-11-07)
+
+`useIsTouchPrimaryDevice` on the web used to count any window under 700 wide as a phone's, whatever
+the device, as a fallback for preview environments that don't report a coarse pointer. Jay, from
+DuelTastic: a thin desktop window still seated 2 Player face to face, one player upside down, and hid
+the keys pickers, and "It should only be face to face if on mobile or web-mobile". Now it's no fine
+primary pointer (`(pointer: fine)` doesn't match) and a touch screen (`maxTouchPoints > 0`, or a
+`(pointer: coarse)` finger), at any width: a phone or a tablet in its browser is touch, a computer in a
+thin window isn't, nor is a touch laptop or a tablet with a trackpad as its primary pointer. A coarse
+pointer stands in for touch points a phone emulator doesn't report (the Claude desktop app's browser
+pane reports 0 with a coarse pointer), and touch points for a device whose pointer is neither. It
+listens to the fine-pointer query only (no resize). Used across
+the fleet (hud's ControlSchemePicker and Settings rows, every How to Play's touch or keys copy,
+`@tastic/shell`'s `useAtComputer`), so a thin desktop window gets a computer's controls and copy
+everywhere. Released in 0.16.0 (a minor: a behavior change). Tests:
+`useIsTouchPrimaryDevice.web.test.ts` (a tablet and a phone, a computer wide and thin, a touch laptop, a
+phone emulator, the query and its change).
 
 ## Code Style
 

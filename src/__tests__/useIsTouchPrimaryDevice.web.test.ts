@@ -10,15 +10,19 @@ function setTouchPoints(maxTouchPoints: number) {
   Object.defineProperty(navigator, 'maxTouchPoints', { writable: true, configurable: true, value: maxTouchPoints })
 }
 
-function mockMatchMedia(matches: boolean) {
+// The primary pointer: a mouse or trackpad ('fine'), a finger ('coarse'), or neither.
+function mockPointer(pointer: 'fine' | 'coarse' | 'none') {
   const listeners: Array<() => void> = []
-  const mql = {
-    matches,
+  const state = { pointer }
+  const mql = (query: string) => ({
+    get matches() {
+      return query === `(pointer: ${state.pointer})`
+    },
     addEventListener: (_event: string, listener: () => void) => listeners.push(listener),
     removeEventListener: jest.fn()
-  }
-  window.matchMedia = jest.fn().mockReturnValue(mql) as unknown as typeof window.matchMedia
-  return { mql, fire: () => listeners.forEach((l) => l()) }
+  })
+  window.matchMedia = jest.fn(mql) as unknown as typeof window.matchMedia
+  return { state, fire: () => listeners.forEach((l) => l()) }
 }
 
 describe('useIsTouchPrimaryDevice (web)', () => {
@@ -32,39 +36,57 @@ describe('useIsTouchPrimaryDevice (web)', () => {
     window.matchMedia = originalMatchMedia
   })
 
-  it('reports touch-primary on a wide desktop-shaped window with a coarse pointer and touch points', () => {
+  it('reports touch-primary on a touch screen with a finger for a pointer, wide or narrow (a tablet, a phone)', () => {
     setViewport(1400)
     setTouchPoints(5)
-    mockMatchMedia(true)
-    const { result } = renderHook(() => useIsTouchPrimaryDevice())
-    expect(result.current).toBe(true)
+    mockPointer('coarse')
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(true)
+
+    setViewport(390)
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(true)
   })
 
-  it('reports NOT touch-primary on a wide desktop-shaped window with a fine (mouse) pointer', () => {
+  it('reports NOT touch-primary at a computer, however thin its window', () => {
+    setTouchPoints(0)
+    mockPointer('fine')
     setViewport(1400)
-    setTouchPoints(0)
-    mockMatchMedia(false)
-    const { result } = renderHook(() => useIsTouchPrimaryDevice())
-    expect(result.current).toBe(false)
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(false)
+
+    setViewport(380)
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(false)
   })
 
-  it('treats a narrow window as touch-primary regardless of what the pointer APIs report', () => {
-    setViewport(400)
-    setTouchPoints(0)
-    mockMatchMedia(false)
-    const { result } = renderHook(() => useIsTouchPrimaryDevice())
-    expect(result.current).toBe(true)
+  it('reports NOT touch-primary on a touch-screen computer whose primary pointer is a mouse or trackpad', () => {
+    setViewport(1400)
+    setTouchPoints(10)
+    mockPointer('fine')
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(false)
   })
 
-  it('re-evaluates on a matchMedia change event', () => {
+  it('reports touch-primary for a coarse pointer with no touch points (a phone emulator), or touch points with neither pointer', () => {
+    setViewport(375)
+    setTouchPoints(0)
+    mockPointer('coarse')
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(true)
+
+    setTouchPoints(5)
+    mockPointer('none')
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(true)
+
+    setTouchPoints(0)
+    expect(renderHook(() => useIsTouchPrimaryDevice()).result.current).toBe(false)
+  })
+
+  it('re-evaluates when the fine pointer comes or goes (a trackpad attached to a tablet)', () => {
     setViewport(1400)
     setTouchPoints(5)
-    const { fire, mql } = mockMatchMedia(false)
+    const { fire, state } = mockPointer('coarse')
     const { result } = renderHook(() => useIsTouchPrimaryDevice())
-    expect(result.current).toBe(false)
+    expect(window.matchMedia).toHaveBeenCalledWith('(pointer: fine)')
+    expect(result.current).toBe(true)
 
-    mql.matches = true
+    state.pointer = 'fine'
     act(() => fire())
-    expect(result.current).toBe(true)
+    expect(result.current).toBe(false)
   })
 })

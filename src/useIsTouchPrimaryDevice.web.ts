@@ -1,37 +1,40 @@
 import { useEffect, useState } from 'react'
 
-// Below this, treat the layout as phone-shaped regardless of what the pointer/touch APIs report - a
-// real desktop browser window is essentially never this narrow, but plenty of touch-capable
-// testing/preview environments (and some real devices) don't reliably report a coarse pointer.
-const NARROW_WIDTH_BREAKPOINT = 700
+// A primary pointer that's a mouse or trackpad: a computer's, even one with a touch screen.
+const FINE_POINTER = '(pointer: fine)'
+// A primary pointer that's a finger.
+const COARSE_POINTER = '(pointer: coarse)'
 
+// A phone's or tablet's browser: no mouse or trackpad as the primary pointer, and a touch screen
+// (touch points, or a finger as the primary pointer). Whatever the window's width (Jay, 2026-11-07): a
+// computer in a thin window is still a computer, with its keyboard, and two players at it sit side by
+// side. Until then a window under 700 wide counted as a phone's whatever the device. A desktop browser
+// always has a fine pointer; a coarse one stands in for touch points where they're missing (a phone
+// emulator reporting 0, like the Claude desktop app's browser pane), and touch points stand in for a
+// touch device whose pointer is neither coarse nor fine.
 function computeIsTouchPrimary(): boolean {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') return false
-  if (window.innerWidth < NARROW_WIDTH_BREAKPOINT) return true
-  if (!window.matchMedia) return navigator.maxTouchPoints > 0
-  return navigator.maxTouchPoints > 0 && window.matchMedia('(pointer: coarse)').matches
+  const touchPoints = navigator.maxTouchPoints > 0
+  if (!window.matchMedia) return touchPoints
+  if (window.matchMedia(FINE_POINTER).matches) return false
+  return touchPoints || window.matchMedia(COARSE_POINTER).matches
 }
 
 // Best-effort proxy for "no physical keyboard, this player is on touch" - there's no public web API
-// that reports keyboard presence directly, so this leans on touch-primary pointer plus a
-// narrow-viewport fallback as the closest available signals. It will false-negative on a wide-screen
-// device with a paired keyboard that still reports a coarse pointer; whatever touch/pointer input
-// path you already offer remains available regardless, so that's a missed capability hint, not a
-// broken control scheme. Live-updated via matchMedia and window resize so a runtime change
-// (attaching/detaching a keyboard, resizing a window) re-evaluates.
+// that reports keyboard presence directly, so this leans on a touch screen without a fine primary
+// pointer as the closest available signal. A tablet with a trackpad attached reads as a computer,
+// which has its keyboard too. Whatever touch/pointer input path you already offer remains available
+// regardless, so a wrong guess is a missed capability hint, not a broken control scheme.
+// Live-updated via matchMedia, so attaching or detaching a mouse or trackpad re-evaluates.
 export function useIsTouchPrimaryDevice(): boolean {
   const [isTouchPrimary, setIsTouchPrimary] = useState(computeIsTouchPrimary)
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined' || !window.matchMedia) return
     const update = () => setIsTouchPrimary(computeIsTouchPrimary())
-    window.addEventListener('resize', update)
-    const mql = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null
-    mql?.addEventListener('change', update)
-    return () => {
-      window.removeEventListener('resize', update)
-      mql?.removeEventListener('change', update)
-    }
+    const mql = window.matchMedia(FINE_POINTER)
+    mql.addEventListener('change', update)
+    return () => mql.removeEventListener('change', update)
   }, [])
 
   return isTouchPrimary

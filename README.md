@@ -20,9 +20,10 @@ whichever package happens to need it first.
   Game-specific gating (pause state, game phase) stays out of the hook - compute your own `enabled`
   boolean and pass it in.
 - **`useIsTouchPrimaryDevice()`**: best-effort environment-capability detection: is this player
-  likely on touch (native, or a touch-primary web viewport) vs. likely to have a keyboard/mouse (a
-  wide-viewport web browser with a fine pointer)? Useful for deciding whether to offer a
-  keyboard-scheme picker or lean on touch/swipe controls. Always `true` on native.
+  likely on touch (native, or a phone's or tablet's browser: a touch screen without a mouse or
+  trackpad as its primary pointer) vs. at a computer (any other browser, however thin its window)?
+  Useful for deciding whether to offer a keyboard-scheme picker or lean on touch/swipe controls.
+  Always `true` on native.
 - **`useBackgroundPause(shouldPause)`** - latches a pause when the app leaves the foreground mid-match
   and holds it until the player taps Resume. See its own section below.
 - **Seat mode**: `useOrientationState` reads side by side or face to face from the window's shape, for
