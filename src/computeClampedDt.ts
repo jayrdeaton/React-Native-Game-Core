@@ -1,8 +1,9 @@
 import { clamp } from './clamp'
 
 // One nominal 60fps frame, in milliseconds - the unit dt is expressed in, so dt = 1 means "a normal
-// frame" regardless of the device's actual refresh rate.
-const NOMINAL_FRAME_MS = 1000 / 60
+// frame" regardless of the device's actual refresh rate. Exported so a caller can turn useGameLoop's
+// dt back into milliseconds (`dt * NOMINAL_FRAME_MS`), e.g. to feed createFixedStepAccumulator.
+export const NOMINAL_FRAME_MS = 1000 / 60
 
 // Converts the raw gap between two rAF timestamps into a frame-count multiplier, clamped so a single
 // step never represents more than maxDt nominal frames - protects a caller's own per-frame math

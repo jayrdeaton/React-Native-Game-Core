@@ -19,6 +19,10 @@ whichever package happens to need it first.
   `requestAnimationFrame` for as long as `enabled` is true, using `computeClampedDt` internally.
   Game-specific gating (pause state, game phase) stays out of the hook - compute your own `enabled`
   boolean and pass it in.
+- **`NOMINAL_FRAME_MS`**: one nominal 60 fps frame in milliseconds (`1000 / 60`), the unit `dt` is
+  measured in, so `dt * NOMINAL_FRAME_MS` is the frame's time in milliseconds.
+- **`createFixedStepAccumulator(stepMs, maxSteps)`**: runs a simulation at a fixed step from that
+  variable frame time, exactly. See its own section below.
 - **`useIsTouchPrimaryDevice()`**: best-effort environment-capability detection: is this player
   likely on touch (native, or a phone's or tablet's browser: a touch screen without a mouse or
   trackpad as its primary pointer) vs. at a computer (any other browser, however thin its window)?
@@ -120,15 +124,16 @@ the right of a landscape screen reads as tilting toward its top. This entry turn
 screen's axes:
 
 ```ts
-import { tiltToScreenAxes, trackInterfaceOrientation } from '@tastic/core/interface-orientation'
+import { edgeDip, tiltToScreenAxes, trackInterfaceOrientation } from '@tastic/core/interface-orientation'
 import { DeviceMotion } from 'expo-sensors'
 
 useEffect(() => {
   const interfaceOrientation = trackInterfaceOrientation()
   const subscription = DeviceMotion.addListener(({ rotation, orientation }) => {
     if (!rotation) return
-    const { x, y } = tiltToScreenAxes(rotation.gamma, rotation.beta, interfaceOrientation.current(orientation))
-    // x is toward the screen's right, y toward its bottom, in gamma/beta's units (radians)
+    const dip = edgeDip(rotation.beta, rotation.gamma)
+    const { x, y } = tiltToScreenAxes(dip, rotation.beta, interfaceOrientation.current(orientation))
+    // x is toward the screen's right, y toward its bottom, in radians
   })
   return () => {
     subscription.remove()
@@ -137,11 +142,17 @@ useEffect(() => {
 }, [])
 ```
 
+- `edgeDip(beta, gamma)` is how far the device's right edge dips below the horizon. Read it instead of
+  `rotation.gamma`, which both platforms report as an Euler roll: it only behaves while the screen faces
+  the sky. A phone held upright swings `gamma` by tens of degrees on a tremor, and once it tips past
+  vertical `gamma` jumps by 180, so a game reading it pins whatever it steers at one side.
+  `asin(sin(gamma) cos(beta))` is continuous at every hold, and lying flat it's `gamma` exactly. `beta`
+  needs no such fix.
 - `trackInterfaceOrientation()` reads expo-screen-orientation once and follows every turn, without
   re-rendering anything. On iOS the module reports `UNKNOWN` from launch until the interface first
   turns; until then `current(heldRotation)` decides from the window's shape (portrait or landscape) and
   DeviceMotion's own `orientation` (which side). Android always reads the display.
-- `tiltToScreenAxes(gamma, beta, orientation)` is the pure mapping. It follows the interface orientation,
+- `tiltToScreenAxes(dip, beta, orientation)` is the pure mapping. It follows the interface orientation,
   not the physical hold, so it stays right with the system rotation lock on.
 - `interfaceOrientationFromHold(windowIsLandscape, heldRotation, previous)` is the iOS stand-in on its own.
 
@@ -193,6 +204,48 @@ bundles the whole package into a single `dist/index.js`/`dist/index.mjs` per for
 per-file boundary for a downstream bundler to exploit by dropping just this call while keeping the
 hook itself - but it's worth knowing about if you're auditing why a package declaring
 `"sideEffects": false` still has one.
+
+## A fixed simulation step: `createFixedStepAccumulator`
+
+`useGameLoop` hands `onTick` a variable `dt`. A simulation that has to step at a constant rate (physics at
+1/120 s, say) runs however many whole steps the frame's time covers and keeps the rest for the next frame.
+`createFixedStepAccumulator(stepMs, maxSteps)` does that bookkeeping and nothing else (no timers, no React):
+
+```ts
+import { createFixedStepAccumulator, NOMINAL_FRAME_MS, useGameLoop } from '@tastic/core'
+
+const accumulator = createFixedStepAccumulator(1000 / 120, 5) // once, e.g. in a ref
+
+useGameLoop((dt) => {
+  const steps = accumulator.advance(dt * NOMINAL_FRAME_MS)
+  for (let i = 0; i < steps; i++) stepSim(state, 1 / 120)
+  draw(state, accumulator.alpha) // alpha: how far into the next step, for interpolating
+}, { enabled })
+```
+
+```ts
+interface FixedStepAccumulator {
+  advance(dtMs: number): number // adds the time, returns how many whole steps to run now
+  readonly alpha: number // the leftover fraction of a step, in [0, 1)
+  reset(): void // drops the leftover (a new round, a resume)
+}
+```
+
+- **Never more than `maxSteps` a frame.** Time beyond `maxSteps` whole steps is discarded, not carried, so
+  a long hitch never builds a backlog that makes the next frames slower still (no spiral of death). After a
+  capped `advance`, `alpha` is 0.
+- **Exact.** Time is counted in whole ticks of 1/39,600 ms, not in fractional milliseconds. 39,600 is the
+  least common multiple of the usual refresh rates (24, 30, 48, 50, 60, 75, 90, 100, 120, 144, 165 and
+  240 Hz), so a frame or a
+  step at any of them, and any whole number of milliseconds, is a whole number of ticks. In floating
+  point, the textbook `while (acc >= step) { acc -= step; steps++ }` loop over `useGameLoop`'s worst case
+  (2.5 nominal frames, 41.67 ms) with a 1/120 s step runs 4 steps and leaves 8.33333333333333 ms, just
+  short of a fifth; here it is exactly 5. A 60 fps frame is exactly 2 steps with `alpha` 0, every frame,
+  and 144 frames at 144 Hz are exactly 120 steps.
+- A `dtMs` that is zero, negative or `NaN` adds nothing. `stepMs` must be positive and `maxSteps` a whole
+  number of at least 1, or it throws a `RangeError`.
+- `useGameLoop` restarts at `dt = 1` after `enabled` turns back on, so call `reset()` there too if the
+  leftover from before the pause shouldn't count.
 
 ## Pausing when the app backgrounds: `useBackgroundPause`
 

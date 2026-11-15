@@ -15,7 +15,7 @@ npm run build       # tsup, outputs CJS + ESM + types to dist/
 npm run build:watch # tsup --watch
 npm run lint         # ESLint check
 npm run fix           # ESLint --fix
-npm test              # Jest (148 tests)
+npm test              # Jest (182 tests)
 npm run test:watch    # Jest --watchAll
 npm run typecheck     # TypeScript type check (tsc --noEmit)
 npm run verify         # lint + test + typecheck + build, in that order
@@ -51,7 +51,8 @@ src/
   index.ts                       - all public exports
   Vec2.ts                        - Vec2 interface + add/subtract/scale/length/distance/dot/normalize, each tagged 'worklet' for use inside Reanimated worklets
   clamp.ts                       - clamp(value, min, max), also 'worklet'-tagged
-  computeClampedDt.ts             - converts a raw rAF timestamp gap into a clamped, frame-rate-independent dt multiplier (dt = 1 means one nominal 60fps frame); returns 1 when there's no prior timestamp
+  computeClampedDt.ts             - converts a raw rAF timestamp gap into a clamped, frame-rate-independent dt multiplier (dt = 1 means one nominal 60fps frame); returns 1 when there's no prior timestamp. Also exports NOMINAL_FRAME_MS (1000 / 60), the frame it measures in
+  fixedStepAccumulator.ts         - createFixedStepAccumulator(stepMs, maxSteps): pure fixed-timestep bookkeeping (advance(dtMs) returns whole steps to run, capped; alpha; reset), counted in integer ticks of 1/39,600 ms
   useBackgroundPause.ts           - latches a pause when AppState leaves 'active' while a lazy shouldPause() getter is true; holds until resume() (games show a Paused dialog)
   useGameLoop.ts                  - drives onTick(dt) once per animation frame while enabled, via computeClampedDt internally; toggling enabled off/on resets the timestamp baseline so the next tick is dt = 1
   useIsTouchPrimaryDevice.ts       - native implementation: always returns true
@@ -71,6 +72,8 @@ Platform resolution note: `package.json`'s `"react-native"` and `"browser"` expo
 - `Vec2` (type) + `add`, `subtract`, `scale`, `length`, `distance`, `dot`, `normalize` - plain 2D vector math; each function is marked `'worklet'`
 - `clamp(value, min, max)` - clamps a number to a range; also `'worklet'`-tagged
 - `computeClampedDt(timestamp, lastTimestamp, maxDt)` - raw rAF timestamp gap to a clamped dt multiplier
+- `NOMINAL_FRAME_MS` - `1000 / 60`, one nominal 60fps frame in ms: the unit of `computeClampedDt`'s and `useGameLoop`'s dt, so `dt * NOMINAL_FRAME_MS` is the frame's time in ms
+- `createFixedStepAccumulator(stepMs, maxSteps)` / `FixedStepAccumulator` (`{ advance(dtMs): number; readonly alpha: number; reset(): void }`) - see "Fixed-step accumulator" below
 - `useBackgroundPause(shouldPause)` / `BackgroundPause`, returning `{ backgroundPaused, resume }`: `shouldPause` is a `() => boolean` read only when the app leaves the foreground ('background', or iOS 'inactive'); the latch survives the return to 'active' and only `resume()` clears it, so a game folds `backgroundPaused` into its own `paused` and shows a Paused dialog whose Resume calls `resume()`. Web needs no .web file: react-native-web's AppState already reports 'background' while the tab is hidden
 - `useGameLoop(onTick, { enabled, maxDt? })` / `UseGameLoopOptions` - drives `onTick(dt)` every animation frame while `enabled` is true; `maxDt` defaults to 2.5
 - `useIsTouchPrimaryDevice()` - best-effort touch-vs-keyboard/mouse capability detection; always `true` on native
@@ -83,7 +86,7 @@ Platform resolution note: `package.json`'s `"react-native"` and `"browser"` expo
 
 - Framework: Jest (`@infinitetoken/jest-config/react-native`), jsdom environment
 - `src/__mocks__/react-native.ts` stands in for `react-native` (plus an `expo-system-ui` mock). It has `AppState` + `emitAppState`/`appStateListeners` for `useBackgroundPause.test.tsx`, and `Dimensions.get` for `getOrientationSnapshot` and `trackInterfaceOrientation`. `src/__mocks__/expo-screen-orientation.ts` (the real enum's values, plus `orientationListeners` for firing a turn) backs the interface-orientation tests
-- 148 tests across 25 suites in `src/__tests__/` (counts as of 2026-11-06)
+- 182 tests across 26 suites in `src/__tests__/` (counts as of 2026-11-15)
 
 ## Removed: game settings and splash gating (2026-10-07)
 
@@ -182,6 +185,26 @@ the fleet (hud's ControlSchemePicker and Settings rows, every How to Play's touc
 everywhere. Released in 0.16.0 (a minor: a behavior change). Tests:
 `useIsTouchPrimaryDevice.web.test.ts` (a tablet and a phone, a computer wide and thin, a touch laptop, a
 phone emulator, the query and its change).
+
+## Fixed-step accumulator and `NOMINAL_FRAME_MS` (2026-11-12)
+
+For Labyrinth (`../Labyrinth`, plan `~/Downloads/Plans/procedural-labyrinth-game-plan.md`, sections 8 and 17; Jay approved 2026-11-12), whose marble physics steps at a fixed 1/120 s from `useGameLoop`'s variable dt. Released in 0.17.0 (2026-11-15).
+
+- **`NOMINAL_FRAME_MS`** is `computeClampedDt.ts`'s existing private constant, now exported (root entry) rather than duplicated, so a caller turns dt back into ms with `dt * NOMINAL_FRAME_MS`.
+- **`createFixedStepAccumulator(stepMs, maxSteps)`** (`src/fixedStepAccumulator.ts`, root entry only, not `./math`): `advance(dtMs)` adds the time and returns how many whole steps to run now; `alpha` is the leftover fraction of a step in [0, 1) for render interpolation (0 before any advance); `reset()` drops the leftover. Pure: no timers, no React, no clock.
+- **Integer ticks, so the clamp's worst case divides exactly.** Time is held in whole ticks of 1/39,600 ms. 39,600 is the LCM of 24, 30, 48, 50, 60, 75, 90, 100, 120, 144, 165 and 240 Hz, so a frame or a step at any of those rates, and every whole ms, is a whole number of ticks (60 Hz frame 660,000; 1/120 s step 330,000; 144 Hz frame 275,000; 2.5 nominal frames 1,650,000). Each `advance` rounds `dtMs * 39,600` to a tick once (soaking up float noise such as 41.66666666666667 ms being 1,650,000.0000000002 ticks); after that it's integer `%` and division, exact in doubles. `stepMs` is rounded to a tick once, at creation. Why: the textbook float loop `while (acc >= step) { acc -= step; steps++ }` over 2.5 nominal frames with a 1000 / 120 step runs 4, leaving 8.33333333333333. (A plain `Math.floor((2.5 * NOMINAL_FRAME_MS) / (1000 / 120))` happens to give exactly 5 in doubles, checked in node, but the subtract loop and the carried float leftover don't.) The finer-than-needed tick (about 25 ns, rather than 39,600 per second) keeps the rounding of an arbitrary jittery dt to at most half a tick, so steady off-grid frame times can't make the sim run measurably fast or slow.
+- **The cap discards, it doesn't carry.** The tick count is clamped to `maxSteps * stepTicks` right after time is added, so time beyond `maxSteps` whole steps is dropped (no spiral of death) and a capped `advance` leaves `alpha` 0; under the cap the leftover is kept. The clamp also keeps a huge or `Infinity` dtMs inside the exact integer range.
+- Zero, negative and `NaN` dtMs add nothing (as `computeClampedDt` floors a rewound clock at 0). `stepMs` that isn't finite or rounds to under a tick, and a `maxSteps` that isn't a whole number of at least 1, throw `RangeError`.
+- Tests: `fixedStepAccumulator.test.ts` (the float loop's 4 vs. exactly 5 for 2.5 frames, directly and through `computeClampedDt`'s clamp; 2 steps and alpha 0 for 20,000 60 fps frames, from exact frame times and from timestamps; 144 Hz timestamps giving exactly 120 steps every second for a minute; the cap discarding; `reset`; zero/negative/NaN; seeded fuzz keeping alpha in [0, 1), the steps within the cap, and the time accounted for; argument checks; both exported from the root entry).
+
+## `edgeDip`: tilt held upright (2026-11-15)
+
+Jay, on his Android: PuckTastic's tilt steering pushed the paddle to one side and then it never moved again. DeviceMotion's `rotation.gamma` is an Euler roll on both platforms, `atan2(-up.x, up.z)` for the up vector in the device's frame (Android's `getOrientation`, iOS's `CMAttitude.roll`). Held upright `up.z` is near 0, so `gamma` swings tens of degrees on a tremor, and past vertical it jumps by 180. PuckTastic fixed it first (its commit c36a589); this moves the fix here. Released in 0.17.0, with the fixed-step accumulator above and the dev dependencies refreshed (`@infinitetoken/tsconfig` ^0.7.0 and patch/minor updates; ESLint 10 and TypeScript 7 still can't move, as in the apps).
+
+- **`edgeDip(beta, gamma)`** (`src/interfaceOrientation/tilt.ts`, exported from `@tastic/core/interface-orientation`): `asin(clamp(sin(gamma) cos(beta), -1, 1))`, the right edge's dip below the horizon (`-up.x`). Continuous at every hold, `gamma` exactly lying flat. Callers pass it to `tiltToScreenAxes` in place of `gamma`, whose first parameter is now named `dip`. `tiltToScreenAxes` stays a pure axis mapping (it can't fix gamma alone: the fix needs beta too, and a caller may calibrate on the raw angles).
+- **README**, "Tilt on a turned screen": the example passes `edgeDip(rotation.beta, rotation.gamma)` and says why.
+- **Consumers** once released: PuckTastic (`shared/paddleGame/utils/tiltInput.ts`, drops its own copy) and Swirlio (`useTiltGravityCenter.ts`, drops its local copy of this entry). Labyrinth reads tilt through `@tastic/input`'s gravity vector, which had the same singularity in `computeTiltAngles`' roll, fixed there the same day.
+- Tests: `interfaceOrientationTilt.test.ts` builds what both platforms report from a hold (the right edge's dip, the top edge's raise, the screen facing up or past vertical, PuckTastic's `reported()`): the dip read back from flat to 89.9 degrees raised and lowered, either side of vertical where `gamma` jumps (by 180 for a level hold), a tremor held upright, and an edge straight down without `NaN` (10 of them fail with raw `gamma` in its place). `interfaceOrientationEntry.test.ts` lists `edgeDip` in the entry's exports.
 
 ## Code Style
 
