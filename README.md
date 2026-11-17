@@ -362,3 +362,7 @@ depends on it directly at the same range, so requiring it package-wide adds no n
 
 `expo-screen-orientation` (>=58.0.0) is optional: only the `@tastic/core/interface-orientation` entry
 imports it.
+
+---
+
+Made by [Infinite Token](https://www.infinitetoken.com), the team behind [Lumber](https://lumber.infinitetoken.com): end-to-end encrypted logging.
