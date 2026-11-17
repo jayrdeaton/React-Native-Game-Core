@@ -11,9 +11,8 @@ export interface EdgeInsets {
 const COMPASS: (keyof EdgeInsets)[] = ['top', 'right', 'bottom', 'left']
 
 // Remaps safe-area insets (reported in the screen's own frame) onto the edges of content turned by
-// `rotation`, so `top: rotated.top` lands at the screen's real top inside turned content. Since 0.15
-// nothing in this package turns content, so callers pass 0 and get the insets back unchanged; it goes
-// once @tastic/hud and @tastic/split-screen stop calling it.
+// `rotation`, so `top: rotated.top` lands at the screen's real top inside turned content (hud's
+// RotatedFrame, a game board laid out turned). At 0 the insets come back unchanged.
 export function rotateInsets(insets: EdgeInsets, rotation: ViewRotation): EdgeInsets {
   const steps = (((rotation / 90) % 4) + 4) % 4
   const edgeFor = (visualEdge: keyof EdgeInsets) => insets[COMPASS[(COMPASS.indexOf(visualEdge) + steps) % 4]]

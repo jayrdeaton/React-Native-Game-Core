@@ -25,21 +25,17 @@ function lastViews() {
   }
 }
 
-const FLIP = { orientationMode: 'faceToFace', p1OnRight: false, upsideDown: true } as const
-const ZERO = { orientationMode: 'faceToFace', p1OnRight: false, upsideDown: false } as const
+const FLIP = { rotation: 180 } as const
+const ZERO = { rotation: 0 } as const
 
 describe('FakeLandscapeView', () => {
   beforeEach(() => {
     ;(View as unknown as jest.Mock).mockClear()
   })
 
-  it('renders children directly under the passed style, unrotated, when rotation is 0 (faceToFace, right-side-up)', () => {
+  it('renders children directly under the passed style, unrotated, when no rotation is given', () => {
     const style = { backgroundColor: 'red' }
-    render(
-      <FakeLandscapeView orientationMode='faceToFace' p1OnRight={false} upsideDown={false} style={style}>
-        hello
-      </FakeLandscapeView>
-    )
+    render(<FakeLandscapeView style={style}>hello</FakeLandscapeView>)
 
     expect(screen.getByText('hello')).toBeTruthy()
 
@@ -51,26 +47,10 @@ describe('FakeLandscapeView', () => {
     expect(inner).toEqual({ ...FILL_INNER, ...style })
   })
 
-  it('ignores p1OnRight for the 0° faceToFace case', () => {
-    const style = { backgroundColor: 'blue' }
-    render(
-      <FakeLandscapeView orientationMode='faceToFace' p1OnRight={true} upsideDown={false} style={style}>
-        hello
-      </FakeLandscapeView>
-    )
-
-    const calls = (View as unknown as jest.Mock).mock.calls
-    expect(calls).toHaveLength(2)
-    const { outerProps, outer, inner } = lastViews()
-    expect(outerProps.pointerEvents).toBe('box-none')
-    expect(outer).toEqual({})
-    expect(inner).toEqual({ ...FILL_INNER, ...style })
-  })
-
-  it('flips 180° in place when faceToFace and upsideDown', () => {
+  it('flips 180° in place for rotation 180', () => {
     const style = { backgroundColor: 'green' }
     render(
-      <FakeLandscapeView orientationMode='faceToFace' p1OnRight={false} upsideDown={true} style={style}>
+      <FakeLandscapeView rotation={180} style={style}>
         hello
       </FakeLandscapeView>
     )
@@ -81,19 +61,6 @@ describe('FakeLandscapeView', () => {
     expect(calls).toHaveLength(2)
     expect(lastViews().outerProps.pointerEvents).toBe('box-none')
     expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style, transform: [{ rotate: '180deg' }] })
-  })
-
-  it('draws no turn for side by side props, either seat order: the window is already wide (0.15)', () => {
-    const style = { backgroundColor: 'yellow' }
-    for (const p1OnRight of [false, true]) {
-      const { unmount } = render(
-        <FakeLandscapeView orientationMode='sideBySide' p1OnRight={p1OnRight} upsideDown={false} style={style}>
-          hello
-        </FakeLandscapeView>
-      )
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
-      unmount()
-    }
   })
 
   it.each([90, -90] as const)('turns %i° and swaps width/height for an explicit rotation', (rotation) => {
@@ -121,8 +88,8 @@ describe('FakeLandscapeView', () => {
     })
   })
 
-  // The ambient read is the window's shape since 0.15, which never asks for a turn.
-  describe('ambient default (orientationMode/p1OnRight/upsideDown all omitted)', () => {
+  // The window's shape never asks for a turn: the OS turns the screen, so a wide window is already wide.
+  describe('with no rotation', () => {
     afterEach(() => {
       ;(useWindowDimensions as jest.Mock).mockReturnValue({ width: 402, height: 874, scale: 3, fontScale: 1 })
     })
@@ -137,23 +104,6 @@ describe('FakeLandscapeView', () => {
 
       expect(screen.getByText('hello')).toBeTruthy()
       expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style })
-    })
-
-    it('honors an explicit prop over the ambient value for that one field, while still falling back for the others', () => {
-      const style = { backgroundColor: 'purple' }
-      render(
-        <FakeLandscapeView upsideDown style={style}>
-          hello
-        </FakeLandscapeView>
-      )
-
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, ...style, transform: [{ rotate: '180deg' }] })
-    })
-
-    it('an explicit rotation wins over the ambient reading', () => {
-      render(<FakeLandscapeView rotation={180}>hello</FakeLandscapeView>)
-
-      expect(lastViews().inner).toEqual({ ...FILL_INNER, transform: [{ rotate: '180deg' }] })
     })
   })
 })
@@ -276,25 +226,6 @@ describe('FakeLandscapeView 0/180 layout equivalence with the old single-View im
 describe('FakeLandscapeView explicit rotation', () => {
   beforeEach(() => {
     ;(View as unknown as jest.Mock).mockClear()
-  })
-
-  it('wins over explicit orientation props, in both directions', () => {
-    const style = { flex: 1 }
-    const { unmount } = render(
-      <FakeLandscapeView {...ZERO} rotation={90} style={style}>
-        x
-      </FakeLandscapeView>
-    )
-    expect(lastViews().inner).toEqual({ ...style, position: 'absolute', width: 874, height: 402, left: (402 - 874) / 2, top: (874 - 402) / 2, transform: [{ rotate: '90deg' }] })
-    unmount()
-
-    render(
-      <FakeLandscapeView {...FLIP} rotation={0} style={style}>
-        x
-      </FakeLandscapeView>
-    )
-    expect(lastViews().inner).toEqual({ ...FILL_INNER })
-    expect(lastViews().outer).toEqual(style)
   })
 
   it('180 rotates in place without swapping the footprint', () => {

@@ -15,7 +15,7 @@ npm run build       # tsup, outputs CJS + ESM + types to dist/
 npm run build:watch # tsup --watch
 npm run lint         # ESLint check
 npm run fix           # ESLint --fix
-npm test              # Jest (182 tests)
+npm test              # Jest (163 tests)
 npm run test:watch    # Jest --watchAll
 npm run typecheck     # TypeScript type check (tsc --noEmit)
 npm run verify         # lint + test + typecheck + build, in that order
@@ -39,10 +39,10 @@ Jay called the drawn rotation "a misguided venture" (2026-11-06): the accelerome
 
 - **The behavior switch:** `useOrientationState(locked?)` is the window's shape on every platform (`sideBySide` when wider than tall, `p1OnRight`/`upsideDown` false, `resolved` true), web's old branch. Two module constants, so the result is referentially stable per mode. `locked` still freezes a call site. `getOrientationSnapshot()` reads `Dimensions.get('window')`. No provider and no sensor.
 - **Deleted:** the sensor source and its tuning, `OrientationStateProvider`, `OrientationLockContext`/`useOrientationLock`/`OrientationLockSettings`, `useKeyboardVisible` (only `portraitWhileKeyboard` used it), the DeviceMotion types, the config plugin (`app.plugin.js`, `plugin/`, and their tests), and the `@rific/core` and `expo` peers (only the lock and the plugin needed them). `OrientationProvider` takes only `children` and renders them.
-- **Kept, inert, until @tastic/hud and @tastic/split-screen stop calling them** (none of hud, split-screen or the shell import anything deleted; the shell's `OrientationBridge` passes the removed props and goes in shell 0.5): `useRotation` (always 0), `useRotatedWindowDimensions` (the window's size), `useRotationAwareStatusBar` (never hides; `locked` ignored), `getViewRotation` (0 for side by side on every platform, 180 only for an explicit upside-down face to face), `getFixedZoneRotation` (always 0), `FakeLandscapeView` (turns only for an explicit `rotation`, which hud's `RotatedFrame` passes), and the pure `rotateInsets`/`rotateDimensions`/`toRotationStyle`/`getOpposingZoneRotation`. Keeping them is release ordering (each package moves when it can), not compatibility for old clients: an app on `^0.14.0` never picks up 0.15.
+- **Kept, inert, until @tastic/hud stopped calling them, then removed (2026-11-17, see "The inert helpers removed" below):** `useRotation`, `useRotatedWindowDimensions`, `useRotationAwareStatusBar`, `getViewRotation`, `getFixedZoneRotation`, `OrientationProvider`. Keeping them was release ordering, not compatibility for old clients: an app on `^0.14.0` never picks up 0.15.
 - **New entry `@tastic/core/interface-orientation`** (`src/interfaceOrientation/`): `tiltToScreenAxes`, `interfaceOrientationFromHold` and `trackInterfaceOrientation()` (`{ current(heldRotation), remove() }`, for use inside a DeviceMotion listener's effect), moved from Swirlio's `constants/tiltOrientation.ts` and `useTiltGravityCenter.ts` for PuckTastic's tilt steering on a turned iPad. Its own entry (tsup entry, `exports`, `typesVersions`) because it imports `expo-screen-orientation`, an optional peer (`>=58.0.0`); `interfaceOrientationEntry.test.ts` checks the root barrel never reaches it. Swirlio moves onto it after its own rotation change is committed.
 - **Dependencies:** dev `expo` ~58.0.23, `expo-system-ui` ~58.0.7, `expo-screen-orientation` ~58.0.4, `react-native` ^0.88.1 (SDK 58), `tsup` ^9.0.0 (built as before, no config change). Not moved: ESLint 10 and TypeScript 7 (as in the apps: the lint plugins and typescript-eslint don't support them yet).
-- The sections below on the rotation components, the config plugin and `portraitWhileKeyboard` are history from before 0.15, except `FakeLandscapeView`'s element-tree rule, which still holds while it exists.
+- The sections below on the rotation components, the config plugin, `portraitWhileKeyboard` and the status bar are history from before 0.15, except `FakeLandscapeView`'s element-tree rule and its 0/180 style split, which still hold.
 
 ## Architecture
 
@@ -86,7 +86,7 @@ Platform resolution note: `package.json`'s `"react-native"` and `"browser"` expo
 
 - Framework: Jest (`@infinitetoken/jest-config/react-native`), jsdom environment
 - `src/__mocks__/react-native.ts` stands in for `react-native` (plus an `expo-system-ui` mock). It has `AppState` + `emitAppState`/`appStateListeners` for `useBackgroundPause.test.tsx`, and `Dimensions.get` for `getOrientationSnapshot` and `trackInterfaceOrientation`. `src/__mocks__/expo-screen-orientation.ts` (the real enum's values, plus `orientationListeners` for firing a turn) backs the interface-orientation tests
-- 182 tests across 26 suites in `src/__tests__/` (counts as of 2026-11-15)
+- 163 tests across 22 suites in `src/__tests__/` (counts as of 2026-11-17)
 
 ## Removed: game settings and splash gating (2026-10-07)
 
@@ -205,6 +205,16 @@ Jay, on his Android: PuckTastic's tilt steering pushed the paddle to one side an
 - **README**, "Tilt on a turned screen": the example passes `edgeDip(rotation.beta, rotation.gamma)` and says why.
 - **Consumers** once released: PuckTastic (`shared/paddleGame/utils/tiltInput.ts`, drops its own copy) and Swirlio (`useTiltGravityCenter.ts`, drops its local copy of this entry). Labyrinth reads tilt through `@tastic/input`'s gravity vector, which had the same singularity in `computeTiltAngles`' roll, fixed there the same day.
 - Tests: `interfaceOrientationTilt.test.ts` builds what both platforms report from a hold (the right edge's dip, the top edge's raise, the screen facing up or past vertical, PuckTastic's `reported()`): the dip read back from flat to 89.9 degrees raised and lowered, either side of vertical where `gamma` jumps (by 180 for a level hold), a tremor held upright, and an edge straight down without `NaN` (10 of them fail with raw `gamma` in its place). `interfaceOrientationEntry.test.ts` lists `edgeDip` in the entry's exports.
+
+## The inert helpers removed (2026-11-17)
+
+0.15 kept six orientation helpers doing nothing so @tastic/hud, @tastic/split-screen and the apps kept compiling. Split-screen stopped re-exporting them and hud stopped calling them (hud 0.34.0: every `rotation` defaults to 0, `ContentGutter`/`useCompactDialog` read `useWindowDimensions()`), and no app on core 0.15 or later calls any of them (checked with grep across `~/Developer`: CardTastic, DragonHoard, DuelTastic, HexFleet, Labyrinth, PuckTastic, Swirlio, the shell, input, sprites). So they're gone, for the next minor (0.18.0):
+
+- **Deleted, with their tests:** `OrientationProvider` (+ `OrientationProviderProps`), `useRotation`, `useRotatedWindowDimensions`, `useRotationAwareStatusBar` (+ `RotationAwareStatusBarOptions`, `RotationAwareStatusBarScreenOptions`, `StatusBarStyle`, `StatusBarAnimation`), `getViewRotation`, `getFixedZoneRotation`, and `getOpposingZoneRotation`, which was never inert but had no caller on 0.15 or later (only the retired standalone Snake, on `^0.14`), and whose ±90 rule described the drawn landscape.
+- **`FakeLandscapeView`** lost `orientationMode`, `p1OnRight`, `upsideDown` and `locked` and its `useOrientationState` subscription: it turns by `rotation` (0 when omitted) and nothing else. Only hud's `RotatedFrame` uses it, always with an explicit `rotation`.
+- **Kept, doing real work:** `FakeLandscapeView`, `rotateDimensions` and `toRotationStyle` (hud's `RotatedFrame` and `ConfirmDialog` for an explicit angle), `rotateInsets` (those, plus PuckTastic's two boards, laid out at -90 in a tall window), `ViewRotation`, `EdgeInsets`, and the seat-mode reading (`useOrientationState`, `getOrientationSnapshot`, `OrientationMode`, `OrientationState`).
+- **Release order:** hud 0.34.0 first, then this. Apps take core `^0.18` and hud `^0.34` together, since hud 0.33 and older import `useRotation`. Apps still on core `^0.14` (Hangman, Asteroids and the other retired or unmigrated ones) never pick up 0.15 or later, so they're unaffected. The standalone Snake repo still calls these against 0.14, but it's retired: Jay folded it into DuelTastic (2026-11-17), so it isn't a caller to move.
+- **README:** "Kept for now, doing nothing" became "Removed in 0.18", with what replaces each, and a new "Turning content by an angle" section documents what's left.
 
 ## Code Style
 

@@ -16,9 +16,9 @@ whichever package happens to need it first.
   single simulation/tick step never represents more time than `maxDt` nominal frames even after a
   stutter or a background/foreground cycle.
 - **`useGameLoop(onTick, { enabled, maxDt })`**: drives `onTick(dt)` once per frame via
-  `requestAnimationFrame` for as long as `enabled` is true, using `computeClampedDt` internally.
-  Game-specific gating (pause state, game phase) stays out of the hook - compute your own `enabled`
-  boolean and pass it in.
+  `requestAnimationFrame` for as long as `enabled` is true, using `computeClampedDt` internally
+  (`maxDt` defaults to 2.5). Game-specific gating (pause state, game phase) stays out of the hook -
+  compute your own `enabled` boolean and pass it in.
 - **`NOMINAL_FRAME_MS`**: one nominal 60 fps frame in milliseconds (`1000 / 60`), the unit `dt` is
   measured in, so `dt * NOMINAL_FRAME_MS` is the frame's time in milliseconds.
 - **`createFixedStepAccumulator(stepMs, maxSteps)`**: runs a simulation at a fixed step from that
@@ -30,10 +30,19 @@ whichever package happens to need it first.
   Always `true` on native.
 - **`useBackgroundPause(shouldPause)`** - latches a pause when the app leaves the foreground mid-match
   and holds it until the player taps Resume. See its own section below.
+- **`computeContentBounds(windowWidth, maxContentWidth)`**: caps a width at `maxContentWidth` and
+  splits what's left into two equal gutters, returning `{ contentWidth, gutterWidth }` (letterboxing a
+  wide web or tablet layout). Pure: pass the width yourself. `Number.POSITIVE_INFINITY` means no cap
+  (`gutterWidth` 0). `@tastic/hud`'s `ContentGutter` is built on it.
+- **`useSettledWindowDimensions()`** and **`useSettledLayout()`**: window and container sizes that settle
+  on the web. See "Sizes that settle on the web" below.
 - **Seat mode**: `useOrientationState` reads side by side or face to face from the window's shape, for
   [`@tastic/split-screen`](https://github.com/jayrdeaton/react-native-split-screen)'s two-player layout.
   Until 0.15 this package read the accelerometer and drew every turn itself; see "Seat mode and
   orientation (0.15)" below.
+- **Turning content by an angle**: `FakeLandscapeView`, `rotateInsets`, `rotateDimensions` and
+  `toRotationStyle`, for content drawn to face another seat (player 2's side of a face-to-face screen).
+  See "Turning content by an angle" below.
 - **`@tastic/core/interface-orientation`**: turns DeviceMotion tilt into the axes of a screen the OS
   has turned. See its own section below.
 - **`useThemedRootBackground(dark, gestureEnabled?)`**: fixes an OS-level corner-flash during
@@ -95,27 +104,53 @@ const { orientationMode } = useOrientationState(roundInProgress)
   bar through native-stack screen options: react-native-screens needs it, and an app linked against the
   iOS 27 SDK can't set the bar app-wide any more. Then make a new native build.
 - **`OrientationProvider`'s props** (`deviceMotion`, `lockInitialValue`, `onLockChange`,
-  `freezeWhileLocked`, `portraitWhileKeyboard`, `allowedRotations`). It renders its children and nothing
-  else, and goes once `@tastic/split-screen` stops re-exporting it.
+  `freezeWhileLocked`, `portraitWhileKeyboard`, `allowedRotations`). It only rendered its children from
+  then on, and went altogether in 0.18 (below).
 - **`useOrientationLock`, `OrientationLockSettings`, `useKeyboardVisible`** and the
   `DeviceMotionModule`/`DeviceMotionMeasurement`/`DeviceMotionListener` types. The OS's own rotation lock
   replaces an in-app Lock Orientation.
 - **The `@rific/core` and `expo` peers**, which only the lock and the plugin needed.
 
-### Kept for now, doing nothing
+### Removed in 0.18
 
-These keep their signatures so `@tastic/hud` and `@tastic/split-screen` work unchanged, and go once
-nothing calls them:
+0.15 left these in place, doing nothing, until `@tastic/hud` stopped calling them (hud 0.34.0 and later;
+an app that takes core 0.18 takes that hud with it):
 
-- `useRotation()` returns 0, and `useRotatedWindowDimensions()` returns the window's own size.
-- `useRotationAwareStatusBar({ style, animation })` never hides the bar; it still passes `style` and
-  `animation` through as `statusBarStyle`/`statusBarAnimation`.
-- `getViewRotation` returns 0 for side by side (180 only for an explicit upside-down face to face), so
-  `getFixedZoneRotation` is always 0.
-- `FakeLandscapeView` draws no turn unless it's given an explicit `rotation` (hud's `RotatedFrame`). Its
-  element tree is still the same at every angle, so a turn never remounts its children.
-- `rotateInsets`, `rotateDimensions`, `toRotationStyle`, `getOpposingZoneRotation` and the `ViewRotation`
-  type are pure and unchanged. Player 2's 180 in a face-to-face layout still uses the last two.
+- **`OrientationProvider`**, which only rendered its children. Unwrap them.
+- **`useRotation()`** (always 0) and **`useRotatedWindowDimensions()`** (the window's own size). Use 0 and
+  `useWindowDimensions()`.
+- **`useRotationAwareStatusBar()`**, which never hid the bar, and its `RotationAwareStatusBarOptions`,
+  `RotationAwareStatusBarScreenOptions`, `StatusBarStyle` and `StatusBarAnimation` types. Set
+  `statusBarStyle` and `statusBarAnimation` in the native stack's screen options yourself.
+- **`getViewRotation`** (0, or 180 for an explicit upside-down face to face), **`getFixedZoneRotation`**
+  (always 0) and **`getOpposingZoneRotation`**. Turn content by the angle it needs: 180 for player 2's side
+  of a face-to-face screen.
+- **`FakeLandscapeView`'s `orientationMode`, `p1OnRight`, `upsideDown` and `locked` props.** It turns by
+  `rotation` alone.
+
+## Turning content by an angle
+
+The OS turns the screen, so these are only for content drawn to face another seat, or laid out turned on
+purpose (a game board):
+
+- **`FakeLandscapeView`** turns its children by `rotation` (`0`, `90`, `180` or `-90`; 0 when omitted),
+  swapping the footprint at ±90. `passThrough` lets touches fall through its own boxes to what's beneath,
+  for a frame laid over other content. Its element tree is the same at every angle, so a turn never
+  remounts its children. Fine for tap-driven content; not for a gesture-tracked board, since
+  react-native-gesture-handler's translations are untransformed.
+- **`rotateInsets(insets, rotation)`** remaps safe-area insets onto the edges of content turned by
+  `rotation`; **`rotateDimensions(width, height, rotation)`** swaps a footprint at ±90;
+  **`toRotationStyle(rotation)`** is `{ transform: [{ rotate }] }`, or `undefined` at 0. `ViewRotation`
+  and `EdgeInsets` are their types.
+
+```tsx
+import { FakeLandscapeView } from '@tastic/core'
+
+// Player 2's half of a face-to-face screen, readable from across the table.
+<FakeLandscapeView rotation={180} style={styles.topHalf}>
+  <ScoreCard seat={2} />
+</FakeLandscapeView>
+```
 
 ## Tilt on a turned screen: `@tastic/core/interface-orientation`
 
@@ -187,7 +222,7 @@ export default function RootLayout() {
 }
 ```
 
-It's a hook returning screen options, like `useRotationAwareStatusBar` above - some fleet apps' root `<Stack>` renders explicit
+It's a hook returning screen options - some fleet apps' root `<Stack>` renders explicit
 `<Stack.Screen>` children, and a hook returning a plain options object composes with both that shape
 and a bare `<Stack screenOptions={...} />` for free, where a wrapping component would need its own
 `children` passthrough prop for the first shape alone.
@@ -269,6 +304,38 @@ false when there is nothing to protect (the match is over) or the game's own dia
 pause. Web needs nothing extra: react-native-web's `AppState` reports `'background'` while the tab is
 hidden.
 
+## Sizes that settle on the web: `useSettledWindowDimensions`, `useSettledLayout`
+
+Through Expo Router's web output, react-native-web's `useWindowDimensions()` can report a wrong or zero
+size at first, and a container's `onLayout` can never fire on the first mount, so a Skia canvas or a
+screen sized from them renders blank until something forces a real browser resize. Both hooks correct
+the first reading; native has no such race, so there they're the plain versions.
+
+```tsx
+import { useSettledLayout, useSettledWindowDimensions } from '@tastic/core'
+
+const { width, height } = useSettledWindowDimensions()
+
+const { ref, onLayout, size } = useSettledLayout()
+return (
+  <View ref={ref} onLayout={onLayout} style={{ flex: 1 }}>
+    {size && <Board width={size.width} height={size.height} />}
+  </View>
+)
+```
+
+- **`useSettledWindowDimensions()`** returns `{ width, height, fontScale, scale }`. On native it is
+  `useWindowDimensions` itself. On the web it reads `window.innerWidth`/`innerHeight` directly, follows
+  every `resize` event, and reads again two animation frames after mount; it reports `fontScale` 1 and
+  `scale` as `window.devicePixelRatio`.
+- **`useSettledLayout<T extends View = View>()`** returns `{ ref, onLayout, size }`: put `ref` and
+  `onLayout` on the container, and `size` is `{ width, height }` once measured (`null` before). On native
+  it's a plain `onLayout` measurement. On the web, if `onLayout` hasn't reported a non-zero size two
+  animation frames after mount, it measures the element itself (`getBoundingClientRect()`).
+- On the web both also dispatch a synthetic `resize` event on `window` at that two-frame mark
+  (`useSettledLayout` only when it had no size yet): a `@shopify/react-native-skia` web `<Canvas>` can
+  have the right size and still never paint its first frame until a real `resize` event fires.
+
 ## Install
 
 Published to the public npm registry as `@tastic/core`.
@@ -285,10 +352,11 @@ npm install @tastic/core
 
 `react` (>=19.0.0) and `react-native` (>=0.76.0) - required for the whole package. `Vec2` and `clamp` are
 also available from the dependency-free `@tastic/core/math` entry (see Usage), which loads without
-any of the peers below; the root entry needs all of them. This is a React
+any peer at all; the root entry also needs `expo-system-ui`, and only `@tastic/core/interface-orientation`
+needs `expo-screen-orientation` (both below). This is a React
 Native toolkit either way, so every real consumer already has both installed regardless.
 
-`expo-system-ui` (>=57.0.0) is a real (non-peer-optional) dependency too, needed only by
+`expo-system-ui` (>=57.0.0) is a required (not optional) peer too, needed only by
 `useThemedRootBackground`, imported directly there: every app in this package's own fleet already
 depends on it directly at the same range, so requiring it package-wide adds no new install burden.
 
