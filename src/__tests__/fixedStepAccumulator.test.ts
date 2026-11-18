@@ -1,5 +1,5 @@
 import { computeClampedDt, NOMINAL_FRAME_MS } from '../computeClampedDt'
-import { createFixedStepAccumulator } from '../fixedStepAccumulator'
+import { advanceFixedStep, createFixedStepAccumulator, createFixedStepState, fixedStepAlpha, resetFixedStep } from '../fixedStepAccumulator'
 import * as core from '../index'
 
 // Labyrinth's physics step: 1/120 s, at most 5 steps a frame (useGameLoop's 2.5-frame clamp is exactly
@@ -180,5 +180,58 @@ describe('createFixedStepAccumulator', () => {
 
   it.each([0, -1, 2.5, NaN, Infinity])('rejects a maxSteps of %p', (maxSteps) => {
     expect(() => createFixedStepAccumulator(STEP_MS, maxSteps)).toThrow(RangeError)
+  })
+})
+
+describe('createFixedStepState', () => {
+  it('steps exactly as the accumulator does over random frame times, alpha and all', () => {
+    const random = mulberry32(42)
+    const accumulator = createFixedStepAccumulator(STEP_MS, MAX_STEPS)
+    const state = createFixedStepState(STEP_MS, MAX_STEPS)
+    for (let i = 0; i < 20_000; i++) {
+      const dtMs = random() < 0.05 ? random() * 200 : random() * 30
+      expect(advanceFixedStep(state, dtMs)).toBe(accumulator.advance(dtMs))
+      expect(fixedStepAlpha(state)).toBe(accumulator.alpha)
+    }
+  })
+
+  it('runs exactly 5 steps for the clamp worst case, and 2 every 60 fps frame', () => {
+    const state = createFixedStepState(STEP_MS, MAX_STEPS)
+    expect(advanceFixedStep(state, 2.5 * NOMINAL_FRAME_MS)).toBe(5)
+    expect(fixedStepAlpha(state)).toBe(0)
+    for (let frame = 1; frame <= 600; frame++) expect(advanceFixedStep(state, frameDtMs(60, frame))).toBe(2)
+  })
+
+  it('is a plain object of numbers, so it survives a copy (a shared value, a worklet capture)', () => {
+    const state = createFixedStepState(STEP_MS, MAX_STEPS)
+    advanceFixedStep(state, 12)
+    const copy = JSON.parse(JSON.stringify(state))
+    expect(copy).toEqual(state)
+    expect(advanceFixedStep(copy, 12)).toBe(advanceFixedStep(state, 12))
+    expect(fixedStepAlpha(copy)).toBe(fixedStepAlpha(state))
+  })
+
+  it('resetFixedStep drops the leftover', () => {
+    const state = createFixedStepState(STEP_MS, MAX_STEPS)
+    advanceFixedStep(state, 12)
+    expect(fixedStepAlpha(state)).toBeGreaterThan(0)
+    resetFixedStep(state)
+    expect(fixedStepAlpha(state)).toBe(0)
+    expect(advanceFixedStep(state, 4)).toBe(0)
+  })
+
+  it.each([0, -1, NaN, Infinity, 0.00001])('rejects a stepMs of %p, naming itself', (stepMs) => {
+    expect(() => createFixedStepState(stepMs, MAX_STEPS)).toThrow(/^createFixedStepState: stepMs/)
+  })
+
+  it.each([0, -1, 2.5, NaN, Infinity])('rejects a maxSteps of %p, naming itself', (maxSteps) => {
+    expect(() => createFixedStepState(STEP_MS, maxSteps)).toThrow(/^createFixedStepState: maxSteps/)
+  })
+
+  it('is exported from the root entry', () => {
+    expect(core.createFixedStepState).toBe(createFixedStepState)
+    expect(core.advanceFixedStep).toBe(advanceFixedStep)
+    expect(core.fixedStepAlpha).toBe(fixedStepAlpha)
+    expect(core.resetFixedStep).toBe(resetFixedStep)
   })
 })

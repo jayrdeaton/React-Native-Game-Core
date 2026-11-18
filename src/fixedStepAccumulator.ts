@@ -29,36 +29,80 @@ export interface FixedStepAccumulator {
   reset(): void
 }
 
+// The accumulator's whole state as a plain object, for a simulation that runs inside a Reanimated worklet
+// (a useFrameCallback on the UI thread). A closure made on the JS thread can't be called from there, but a
+// plain object of numbers can live in a shared value, or inside the simulation's own state, and be stepped
+// with advanceFixedStep, fixedStepAlpha and resetFixedStep, which are all 'worklet'. createFixedStepAccumulator
+// is the same bookkeeping wrapped in a closure, for the JS thread.
+export interface FixedStepState {
+  // Ticks accumulated toward the next step, always fewer than one step's worth between advances.
+  ticks: number
+  // One step, in ticks.
+  stepTicks: number
+  // The most ticks ever held: maxSteps whole steps. Clamping to it as soon as time is added is what
+  // discards the excess, and keeps a huge (or Infinity) dtMs from leaving the exact integer range.
+  capTicks: number
+}
+
+// Checks the arguments and makes the state, naming the caller in the error. Declared before the worklets that call it:
+// the Babel worklets plugin turns each 'worklet' function into a constant, so a worklet can't reach a function
+// declared further down the file (hoisting doesn't survive the transform).
+function newState(caller: string, stepMs: number, maxSteps: number): FixedStepState {
+  'worklet'
+  const stepTicks = Math.round(stepMs * TICKS_PER_MS)
+  if (!Number.isFinite(stepMs) || stepTicks < 1) throw new RangeError(`${caller}: stepMs must be a positive, finite number of milliseconds (got ${stepMs})`)
+  if (!Number.isInteger(maxSteps) || maxSteps < 1) throw new RangeError(`${caller}: maxSteps must be a whole number of at least 1 (got ${maxSteps})`)
+  return { ticks: 0, stepTicks, capTicks: stepTicks * maxSteps }
+}
+
+// A fresh state for a step of stepMs, at most maxSteps steps an advance. Throws a RangeError unless stepMs is a
+// positive, finite number of milliseconds and maxSteps a whole number of at least 1.
+export function createFixedStepState(stepMs: number, maxSteps: number): FixedStepState {
+  'worklet'
+  return newState('createFixedStepState', stepMs, maxSteps)
+}
+
+// Adds dtMs of elapsed time to the state and returns how many whole steps to run now, never more than
+// maxSteps. A dtMs that is zero, negative or NaN adds nothing.
+export function advanceFixedStep(state: FixedStepState, dtMs: number): number {
+  'worklet'
+  if (dtMs > 0) state.ticks = Math.min(state.ticks + Math.round(dtMs * TICKS_PER_MS), state.capTicks)
+  const leftover = state.ticks % state.stepTicks
+  const steps = (state.ticks - leftover) / state.stepTicks
+  state.ticks = leftover
+  return steps
+}
+
+// The leftover fraction of a step, in [0, 1): how far the next step has got. 0 before any advance.
+export function fixedStepAlpha(state: FixedStepState): number {
+  'worklet'
+  return state.ticks / state.stepTicks
+}
+
+// Drops every accumulated tick, so alpha is 0 and the next advance starts from nothing.
+export function resetFixedStep(state: FixedStepState): void {
+  'worklet'
+  state.ticks = 0
+}
+
 // A fixed-timestep accumulator for a simulation stepped at a constant stepMs, driven by a variable
 // frame time (useGameLoop's dt, turned into milliseconds with `dt * NOMINAL_FRAME_MS`). Each frame,
 // `advance(dtMs)` says how many steps to run, and `alpha` how far between the last two states to draw.
 // Time beyond maxSteps whole steps is discarded rather than carried, so a long hitch never queues up a
 // backlog of steps to catch up on (no spiral of death); after such an advance alpha is 0. Pure: no
-// timers, no React, no clock of its own.
+// timers, no React, no clock of its own. The FixedStepState functions above, in a closure.
 export function createFixedStepAccumulator(stepMs: number, maxSteps: number): FixedStepAccumulator {
-  const stepTicks = Math.round(stepMs * TICKS_PER_MS)
-  if (!Number.isFinite(stepMs) || stepTicks < 1) throw new RangeError(`createFixedStepAccumulator: stepMs must be a positive, finite number of milliseconds (got ${stepMs})`)
-  if (!Number.isInteger(maxSteps) || maxSteps < 1) throw new RangeError(`createFixedStepAccumulator: maxSteps must be a whole number of at least 1 (got ${maxSteps})`)
-
-  // The most ticks the accumulator ever holds: maxSteps whole steps. Clamping to it as soon as time is
-  // added is what discards the excess, and keeps a huge (or Infinity) dtMs from leaving the exact
-  // integer range.
-  const capTicks = stepTicks * maxSteps
-  let ticks = 0
+  const state = newState('createFixedStepAccumulator', stepMs, maxSteps)
 
   return {
     advance(dtMs: number): number {
-      if (dtMs > 0) ticks = Math.min(ticks + Math.round(dtMs * TICKS_PER_MS), capTicks)
-      const leftover = ticks % stepTicks
-      const steps = (ticks - leftover) / stepTicks
-      ticks = leftover
-      return steps
+      return advanceFixedStep(state, dtMs)
     },
     get alpha(): number {
-      return ticks / stepTicks
+      return fixedStepAlpha(state)
     },
     reset(): void {
-      ticks = 0
+      resetFixedStep(state)
     }
   }
 }

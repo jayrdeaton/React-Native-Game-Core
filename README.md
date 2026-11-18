@@ -23,6 +23,9 @@ whichever package happens to need it first.
   measured in, so `dt * NOMINAL_FRAME_MS` is the frame's time in milliseconds.
 - **`createFixedStepAccumulator(stepMs, maxSteps)`**: runs a simulation at a fixed step from that
   variable frame time, exactly. See its own section below.
+- **`createFixedStepState`, `advanceFixedStep`, `fixedStepAlpha`, `resetFixedStep`**: the same
+  bookkeeping as plain `'worklet'` functions on a plain object, for a simulation stepped on the UI
+  thread in a Reanimated frame callback. Also in that section.
 - **`useIsTouchPrimaryDevice()`**: best-effort environment-capability detection: is this player
   likely on touch (native, or a phone's or tablet's browser: a touch screen without a mouse or
   trackpad as its primary pointer) vs. at a computer (any other browser, however thin its window)?
@@ -70,7 +73,8 @@ function useMyGameLoop(step: (dt: number) => void, enabled: boolean) {
 import { clamp, length, scale, type Vec2 } from '@tastic/core/math'
 ```
 
-The root entry re-exports the same functions, so existing imports keep working. Headless code
+The fixed step (`createFixedStepAccumulator` and the worklet `createFixedStepState` family, below) is on this
+entry too, for a simulation stepped on the UI thread or headless. The root entry re-exports the same functions, so existing imports keep working. Headless code
 (`@tastic/input`, `@tastic/physics`, `@tastic/sprites`, or an app's own physics step) should prefer the
 subpath: importing the root barrel loads every app-level module behind it (`expo-system-ui`) and runs
 `useThemedRootBackground`'s import-time root background call. `package.json`'s `sideEffects` lists only
@@ -281,6 +285,41 @@ interface FixedStepAccumulator {
   number of at least 1, or it throws a `RangeError`.
 - `useGameLoop` restarts at `dt = 1` after `enabled` turns back on, so call `reset()` there too if the
   leftover from before the pause shouldn't count.
+
+### On the UI thread: `createFixedStepState`
+
+A closure made on the JS thread can't be called from a Reanimated worklet, so a simulation stepped in a
+`useFrameCallback` keeps the accumulator's state as a plain object of numbers instead, in a shared value or
+inside its own world, and steps it with functions that are all `'worklet'`:
+
+```ts
+import { advanceFixedStep, createFixedStepState, fixedStepAlpha, resetFixedStep } from '@tastic/core'
+
+useFrameCallback((frame) => {
+  'worklet'
+  const world = worldValue.get()
+  world.clock ??= createFixedStepState(1000 / 120, 5) // made on the UI thread, kept in the world
+  const steps = advanceFixedStep(world.clock, frame.timeSincePreviousFrame ?? 0)
+  for (let i = 0; i < steps; i++) step(world, 1 / 120)
+  draw(world, fixedStepAlpha(world.clock))
+})
+```
+
+```ts
+interface FixedStepState {
+  ticks: number // toward the next step
+  stepTicks: number // one step
+  capTicks: number // maxSteps steps
+}
+createFixedStepState(stepMs: number, maxSteps: number): FixedStepState
+advanceFixedStep(state: FixedStepState, dtMs: number): number // mutates state, returns whole steps to run
+fixedStepAlpha(state: FixedStepState): number
+resetFixedStep(state: FixedStepState): void
+```
+
+It's the same arithmetic as `createFixedStepAccumulator` (which is these functions in a closure), with the same
+cap, the same exact tick counting and the same `RangeError`s, so a run stepped this way is the same run at any
+frame rate.
 
 ## Pausing when the app backgrounds: `useBackgroundPause`
 
